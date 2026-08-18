@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -32,28 +34,35 @@ func (f *goreeCloudAssetFileSystem) Open(name string) (http.File, error) {
 	cleanName := strings.TrimPrefix(path.Clean("/"+name), "/")
 
 	if strings.HasPrefix(cleanName, goreeCloudUIAssetPrefix) {
-		return http.FS(goreeCloudUIAssets).Open(cleanName)
+		localFile, err := http.FS(goreeCloudUIAssets).Open(cleanName)
+		if err != nil {
+			return nil, errors.Wrap(err, "open GoreeCloud UI asset")
+		}
+
+		return localFile, nil
 	}
 
 	upstreamFile, err := f.base.Open(name)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "open upstream HTML UI asset")
 	}
 
 	if cleanName != "index.html" {
 		return upstreamFile, nil
 	}
 
-	defer upstreamFile.Close()
+	defer func() {
+		_ = upstreamFile.Close()
+	}()
 
 	info, err := upstreamFile.Stat()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "stat upstream HTML UI index")
 	}
 
 	contents, err := io.ReadAll(upstreamFile)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "read upstream HTML UI index")
 	}
 
 	contents = applyGoreeCloudHTMLIdentity(contents)
@@ -99,6 +108,7 @@ func applyGoreeCloudHTMLIdentity(contents []byte) []byte {
 
 func replaceHTMLTagContents(html, tag, replacement string) string {
 	openPrefix := "<" + tag
+
 	openStart := strings.Index(html, openPrefix)
 	if openStart < 0 {
 		return html
@@ -108,13 +118,15 @@ func replaceHTMLTagContents(html, tag, replacement string) string {
 	if openEndRelative < 0 {
 		return html
 	}
-	openEnd := openStart + openEndRelative + 1
 
+	openEnd := openStart + openEndRelative + 1
 	closeTag := "</" + tag + ">"
+
 	closeRelative := strings.Index(html[openEnd:], closeTag)
 	if closeRelative < 0 {
 		return html
 	}
+
 	closeStart := openEnd + closeRelative
 
 	return html[:openEnd] + replacement + html[closeStart:]
@@ -126,9 +138,11 @@ type memoryHTTPFile struct {
 }
 
 func (f *memoryHTTPFile) Close() error { return nil }
+
 func (f *memoryHTTPFile) Stat() (fs.FileInfo, error) {
 	return f.info, nil
 }
+
 func (f *memoryHTTPFile) Readdir(_ int) ([]fs.FileInfo, error) {
 	return nil, &fs.PathError{Op: "readdir", Path: f.info.Name(), Err: fs.ErrInvalid}
 }
