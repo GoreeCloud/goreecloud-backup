@@ -8,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/kopia/kopia/internal/apiclient"
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/clock"
 )
@@ -89,4 +90,28 @@ func TestGoreeCloudAuthenticationDeniesInvalidCredentials(t *testing.T) {
 	require.False(t, s.isAuthenticated(requestContext{w: rr, req: req, srv: s}))
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
 	require.Equal(t, `Basic realm="Kopia"`, rr.Header().Get("WWW-Authenticate"))
+}
+
+func TestGoreeCloudRequestIntegrityValidatesCSRFTokenWithoutExposingSecrets(t *testing.T) {
+	const sessionID = "goreecloud-session-secret-test-value"
+
+	s := &Server{authCookieSigningKey: []byte("goreecloud-csrf-test-signing-key")}
+
+	validRequest := httptest.NewRequest(http.MethodPost, "https://backup.goreecloud.test/api/v1/sources", http.NoBody)
+	validRequest.AddCookie(&http.Cookie{Name: kopiaSessionCookie, Value: sessionID})
+	validRequest.Header.Set(apiclient.CSRFTokenHeader, s.generateCSRFToken(sessionID))
+	require.True(t, s.validateCSRFToken(validRequest))
+
+	invalidRequest := httptest.NewRequest(http.MethodPost, "https://backup.goreecloud.test/api/v1/sources", http.NoBody)
+	invalidRequest.AddCookie(&http.Cookie{Name: kopiaSessionCookie, Value: sessionID})
+	invalidRequest.Header.Set(apiclient.CSRFTokenHeader, "submitted-csrf-secret-test-value")
+	require.False(t, s.validateCSRFToken(invalidRequest))
+
+	missingTokenRequest := httptest.NewRequest(http.MethodPost, "https://backup.goreecloud.test/api/v1/sources", http.NoBody)
+	missingTokenRequest.AddCookie(&http.Cookie{Name: kopiaSessionCookie, Value: sessionID})
+	require.False(t, s.validateCSRFToken(missingTokenRequest))
+
+	missingSessionRequest := httptest.NewRequest(http.MethodPost, "https://backup.goreecloud.test/api/v1/sources", http.NoBody)
+	missingSessionRequest.Header.Set(apiclient.CSRFTokenHeader, "submitted-csrf-secret-test-value")
+	require.False(t, s.validateCSRFToken(missingSessionRequest))
 }
