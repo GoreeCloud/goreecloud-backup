@@ -325,6 +325,8 @@ func (s *Server) requireAuth(checkCSRFToken csrfTokenOption, f func(ctx context.
 		if checkCSRFToken == csrfTokenRequired {
 			if !s.validateCSRFToken(r) {
 				http.Error(w, "Invalid or missing CSRF token.\n", http.StatusUnauthorized)
+				userLog(r.Context()).Warnw("request integrity denied", "event", "request.csrf.denied", "path", r.URL.Path)
+
 				return
 			}
 		}
@@ -390,7 +392,7 @@ func (s *Server) handleRequestPossiblyNotConnected(isAuthorized isAuthorizedFunc
 		rc.body = body
 
 		if s.options.LogRequests {
-			userLog(ctx).Debugf("request %v (%v bytes)", rc.req.URL, len(body))
+			userLog(ctx).Debugf("request %v (%v bytes)", rc.req.URL.Path, len(body))
 		}
 
 		rc.w.Header().Set("Content-Type", "application/json")
@@ -431,7 +433,7 @@ func (s *Server) handleRequestPossiblyNotConnected(isAuthorized isAuthorizedFunc
 		rc.w.WriteHeader(err.httpErrorCode)
 
 		if s.options.LogRequests && err.apiErrorCode == serverapi.ErrorNotConnected {
-			userLog(ctx).Debugf("%v: error code %v message %v", rc.req.URL, err.apiErrorCode, err.message)
+			userLog(ctx).Debugf("%v: error code %v message %v", rc.req.URL.Path, err.apiErrorCode, err.message)
 		}
 
 		_ = e.Encode(&serverapi.ErrorResponse{
@@ -869,7 +871,7 @@ type Options struct {
 	AuthCookieSigningKey     string
 	LogRequests              bool
 	UIUser                   string // name of the user allowed to access the UI API
-	UIPreferencesFile        string // name of the JSON file storing UI preferences
+	UIPreferencesFile        string // name of the user preferences stored as JSON
 	ServerControlUser        string // name of the user allowed to access the server control API
 	DisableCSRFTokenChecks   bool
 	PersistentLogs           bool
