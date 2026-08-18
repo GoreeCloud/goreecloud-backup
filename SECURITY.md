@@ -50,11 +50,11 @@ Wardveil security events must preserve the identity of the underlying component/
 
 ## Known release blockers
 
-The current inherited HTTP authentication path in `internal/server/server.go` still records the remote address and submitted username on failed login and may log remote address plus username on successful login when request logging is enabled. That behavior does not satisfy the GoreeCloud observability/privacy contract and must be reconciled and regression-tested before Stable classification.
+The maintained HTTP authentication source blocker has been remediated: authentication events now use stable structured categories without submitted usernames or remote addresses, the short-term optimization cookie is explicitly `HttpOnly`, `Secure`, and `SameSite=Strict`, and JWT validation is constrained to the intended algorithm, issuer, audience, validity, and subject. Focused regression tests run directly in the Wardveil source-security workflow.
 
-The same inherited authentication path also requires explicit release evidence for the short-term authentication cookie's `HttpOnly`, `Secure`, and intentional `SameSite` behavior. These attributes must be reviewed and tested rather than inferred from transport topology.
+GitHub Dependency Review remains required when technically available. The workflow is intentionally retained while Dependency Graph remains disabled for this fork; the GoreeCloud Security workflow supplements but does not silently replace that repository-native control.
 
-GitHub Dependency Review is also required when technically available. The workflow is intentionally retained while Dependency Graph remains disabled for this fork; the GoreeCloud Security workflow supplements but does not silently replace that repository-native control.
+Separate release acceptance remains required for approved canonical application artwork, representative packaged-runtime behavior, Glaze UI accessibility/runtime validation, target authentication/authorization and TLS/proxy behavior, logging retention/access, monitoring/notification integration, and representative restoration.
 
 ## Security acceptance
 
