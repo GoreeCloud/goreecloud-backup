@@ -1,6 +1,7 @@
 {
   "name": "kopia-ui",
   "version": "1.0.0",
+  "desktopName": "com.goreecloud.backup.desktop",
   "repository": "github:GoreeCloud/goreecloud-backup",
   "dependencies": {
     "auto-launch": "^5.0.6",
@@ -80,6 +81,7 @@
     },
     "linux": {
       "target": ["AppImage", "deb", "rpm"],
+      "syncDesktopName": true,
       "extraResources": [
         {
           "from": "../dist/kopia_linux_${arch}",
