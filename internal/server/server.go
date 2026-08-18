@@ -204,6 +204,7 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 	if !ok {
 		rc.w.Header().Set("WWW-Authenticate", `Basic realm="Kopia"`)
 		http.Error(rc.w, "Missing credentials.\n", http.StatusUnauthorized)
+		userLog(rc.req.Context()).Warnw("authentication denied", "event", "auth.failed", "reason", "missing_credentials")
 
 		return false
 	}
@@ -219,9 +220,7 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 	if !authn.IsValid(rc.req.Context(), rc.rep, username, password) {
 		rc.w.Header().Set("WWW-Authenticate", `Basic realm="Kopia"`)
 		http.Error(rc.w, "Access denied.\n", http.StatusUnauthorized)
-
-		// Log failed authentication attempt
-		userLog(rc.req.Context()).Warnf("failed login attempt by client %s for user %s", rc.req.RemoteAddr, username)
+		userLog(rc.req.Context()).Warnw("authentication denied", "event", "auth.failed", "reason", "invalid_credentials")
 
 		return false
 	}
@@ -230,18 +229,20 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 
 	ac, err := rc.srv.generateShortTermAuthCookie(username, now)
 	if err != nil {
-		userLog(rc.req.Context()).Errorf("unable to generate short-term auth cookie: %v", err)
+		userLog(rc.req.Context()).Errorw("authentication cookie generation failed", "event", "auth.cookie.error", "err", err)
 	} else {
 		http.SetCookie(rc.w, &http.Cookie{
-			Name:    kopiaAuthCookie,
-			Value:   ac,
-			Expires: now.Add(kopiaAuthCookieTTL),
-			Path:    "/",
+			Name:     kopiaAuthCookie,
+			Value:    ac,
+			Expires:  now.Add(kopiaAuthCookieTTL),
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
 		})
 
 		if s.options.LogRequests {
-			// Log successful authentication
-			userLog(rc.req.Context()).Infof("successful login by client %s for user %s", rc.req.RemoteAddr, username)
+			userLog(rc.req.Context()).Infow("authentication succeeded", "event", "auth.succeeded")
 		}
 	}
 
@@ -249,15 +250,22 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 }
 
 func (s *Server) isAuthCookieValid(username, cookieValue string) bool {
-	tok, err := jwt.ParseWithClaims(cookieValue, &jwt.RegisteredClaims{}, func(_ *jwt.Token) (any, error) {
-		return s.authCookieSigningKey, nil
-	})
+	tok, err := jwt.ParseWithClaims(
+		cookieValue,
+		&jwt.RegisteredClaims{},
+		func(_ *jwt.Token) (any, error) {
+			return s.authCookieSigningKey, nil
+		},
+		jwt.WithAudience(kopiaAuthCookieAudience),
+		jwt.WithIssuer(kopiaAuthCookieIssuer),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
 	if err != nil {
 		return false
 	}
 
 	sc, ok := tok.Claims.(*jwt.RegisteredClaims)
-	if !ok {
+	if !ok || !tok.Valid {
 		return false
 	}
 
