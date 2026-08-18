@@ -3,14 +3,23 @@
  *
  * This stylesheet maps the current upstream React/Bootstrap presentation onto the canonical
  * Glaze UI semantic foundation without changing application behavior or backup semantics.
- * Keep selectors intentionally broad and presentation-only until GoreeCloud owns the complete
- * frontend source boundary.
+ * Keep selectors presentation-only until GoreeCloud owns the complete frontend source boundary.
  */
 
 html,
 body,
 #root {
   min-height: 100%;
+}
+
+html {
+  background: var(--glaze-canvas);
+  scrollbar-color: color-mix(in srgb, var(--glaze-muted) 42%, transparent) transparent;
+}
+
+body.goreecloud-backup,
+body.goreecloud-backup * {
+  box-sizing: border-box;
 }
 
 body.goreecloud-backup {
@@ -21,6 +30,24 @@ body.goreecloud-backup {
     radial-gradient(circle at 85% 5%, color-mix(in srgb, var(--glaze-accent-2) 11%, transparent), transparent 30rem),
     linear-gradient(180deg, var(--glaze-canvas-accent), var(--glaze-canvas));
   background-attachment: fixed;
+  font-family: var(--glaze-font-sans);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.goreecloud-backup :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--glaze-text);
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+
+body.goreecloud-backup :where(p, li, label, small, .form-label) {
+  text-wrap: pretty;
+}
+
+body.goreecloud-backup :where(.container, .container-fluid) {
+  --bs-gutter-x: clamp(1.25rem, 3vw, 2rem);
 }
 
 body.goreecloud-backup :where(.navbar, .offcanvas, .card, .list-group-item, .accordion-item) {
@@ -35,11 +62,29 @@ body.goreecloud-backup :where(.navbar, .offcanvas) {
   box-shadow: var(--glaze-shadow-soft);
 }
 
+body.goreecloud-backup .navbar {
+  min-height: 64px;
+  border-bottom: 1px solid var(--glaze-line);
+}
+
+body.goreecloud-backup :where(.navbar-brand, .offcanvas-title) {
+  color: var(--glaze-text) !important;
+  font-weight: 800;
+  letter-spacing: -.025em;
+}
+
 body.goreecloud-backup :where(.card, .accordion-item) {
   border-radius: var(--glaze-radius-lg);
   background: var(--glaze-surface-strong);
   box-shadow: var(--glaze-shadow-soft);
   overflow: clip;
+}
+
+body.goreecloud-backup .card {
+  transition:
+    transform var(--glaze-motion-standard) var(--glaze-ease-standard),
+    border-color var(--glaze-motion-fast) var(--glaze-ease-standard),
+    box-shadow var(--glaze-motion-standard) var(--glaze-ease-standard);
 }
 
 body.goreecloud-backup .card-header,
@@ -50,6 +95,12 @@ body.goreecloud-backup .accordion-button {
   border-color: var(--glaze-line);
 }
 
+body.goreecloud-backup .accordion-button:not(.collapsed) {
+  color: var(--glaze-text);
+  background: color-mix(in srgb, var(--glaze-accent) 8%, var(--glaze-surface-muted));
+  box-shadow: inset 0 -1px 0 var(--glaze-line);
+}
+
 body.goreecloud-backup :where(.modal-content, .dropdown-menu, .popover, .toast) {
   color: var(--glaze-text);
   border: 1px solid var(--glaze-line);
@@ -58,6 +109,10 @@ body.goreecloud-backup :where(.modal-content, .dropdown-menu, .popover, .toast) 
   box-shadow: var(--glaze-shadow-overlay);
   -webkit-backdrop-filter: blur(var(--glaze-blur-overlay)) saturate(140%);
   backdrop-filter: blur(var(--glaze-blur-overlay)) saturate(140%);
+}
+
+body.goreecloud-backup .modal-backdrop.show {
+  opacity: .46;
 }
 
 body.goreecloud-backup :where(.btn, .form-control, .form-select, .input-group-text, .page-link) {
@@ -72,6 +127,10 @@ body.goreecloud-backup :where(.btn, .form-control, .form-select, .input-group-te
     opacity var(--glaze-motion-fast) var(--glaze-ease-standard);
 }
 
+body.goreecloud-backup .btn {
+  font-weight: 700;
+}
+
 body.goreecloud-backup :where(.form-control, .form-select, .input-group-text) {
   color: var(--glaze-text);
   background-color: var(--glaze-surface-muted);
@@ -80,6 +139,18 @@ body.goreecloud-backup :where(.form-control, .form-select, .input-group-text) {
 body.goreecloud-backup :where(.form-control, .form-select)::placeholder {
   color: var(--glaze-muted);
   opacity: 1;
+}
+
+body.goreecloud-backup :where(.form-control, .form-select):focus {
+  color: var(--glaze-text);
+  background-color: var(--glaze-surface-strong);
+  border-color: color-mix(in srgb, var(--glaze-accent) 48%, var(--glaze-line));
+}
+
+body.goreecloud-backup :where(.form-control, .form-select, .btn, .page-link):disabled,
+body.goreecloud-backup :where(.form-control, .form-select, .btn, .page-link).disabled {
+  opacity: var(--glaze-opacity-disabled);
+  cursor: not-allowed;
 }
 
 body.goreecloud-backup .btn-primary {
@@ -95,14 +166,43 @@ body.goreecloud-backup .btn-outline-primary {
   background: color-mix(in srgb, var(--glaze-accent) 6%, transparent);
 }
 
+body.goreecloud-backup :where(.btn-danger, .btn-outline-danger) {
+  border-color: color-mix(in srgb, var(--glaze-danger) 38%, var(--glaze-line));
+}
+
+body.goreecloud-backup .btn-danger {
+  color: #fff;
+  background: color-mix(in srgb, var(--glaze-danger) 88%, #5e0b08);
+}
+
+body.goreecloud-backup .btn-outline-danger {
+  color: var(--glaze-danger);
+  background: color-mix(in srgb, var(--glaze-danger) 7%, transparent);
+}
+
 body.goreecloud-backup :where(.btn, .page-link):active:not(:disabled) {
   transform: scale(.985);
 }
 
-body.goreecloud-backup :where(.btn, .form-control, .form-select, .page-link, .nav-link):focus-visible {
+body.goreecloud-backup :where(.btn, .form-control, .form-select, .form-check-input, .page-link, .nav-link, .dropdown-item, .accordion-button):focus-visible {
   outline: var(--glaze-focus-width) solid color-mix(in srgb, var(--glaze-accent) 58%, transparent);
   outline-offset: var(--glaze-focus-offset);
   box-shadow: none;
+}
+
+body.goreecloud-backup .form-check-input {
+  border-color: color-mix(in srgb, var(--glaze-muted) 38%, var(--glaze-line));
+  background-color: var(--glaze-surface-muted);
+}
+
+body.goreecloud-backup .form-check-input:checked {
+  border-color: var(--glaze-accent);
+  background-color: var(--glaze-accent);
+}
+
+body.goreecloud-backup .form-switch .form-check-input {
+  min-width: 2.65rem;
+  min-height: 1.45rem;
 }
 
 body.goreecloud-backup :where(.nav-tabs, .nav-pills) {
@@ -111,8 +211,15 @@ body.goreecloud-backup :where(.nav-tabs, .nav-pills) {
 }
 
 body.goreecloud-backup :where(.nav-tabs .nav-link, .nav-pills .nav-link) {
+  min-height: var(--glaze-target-min);
+  display: inline-flex;
+  align-items: center;
   border-radius: var(--glaze-radius-pill);
   color: var(--glaze-muted);
+  transition:
+    color var(--glaze-motion-fast) var(--glaze-ease-standard),
+    background var(--glaze-motion-fast) var(--glaze-ease-standard),
+    border-color var(--glaze-motion-fast) var(--glaze-ease-standard);
 }
 
 body.goreecloud-backup :where(.nav-tabs .nav-link.active, .nav-pills .nav-link.active) {
@@ -122,11 +229,30 @@ body.goreecloud-backup :where(.nav-tabs .nav-link.active, .nav-pills .nav-link.a
   box-shadow: var(--glaze-shadow-soft);
 }
 
+body.goreecloud-backup :where(.list-group-item, .dropdown-item) {
+  color: var(--glaze-text);
+  background: transparent;
+}
+
+body.goreecloud-backup :where(.list-group-item.active, .dropdown-item.active, .dropdown-item:active) {
+  color: var(--glaze-text);
+  border-color: color-mix(in srgb, var(--glaze-accent) 28%, var(--glaze-line));
+  background: color-mix(in srgb, var(--glaze-accent) 12%, var(--glaze-surface-muted));
+}
+
+body.goreecloud-backup :where(.dropdown-item:hover, .list-group-item-action:hover) {
+  color: var(--glaze-text);
+  background: color-mix(in srgb, var(--glaze-accent) 8%, var(--glaze-surface-muted));
+}
+
 body.goreecloud-backup :where(.table) {
   --bs-table-bg: transparent;
   --bs-table-color: var(--glaze-text);
   --bs-table-border-color: var(--glaze-line);
+  --bs-table-striped-bg: color-mix(in srgb, var(--glaze-muted) 5%, transparent);
+  --bs-table-hover-bg: color-mix(in srgb, var(--glaze-accent) 7%, transparent);
   color: var(--glaze-text);
+  margin-bottom: 0;
 }
 
 body.goreecloud-backup :where(.table-responsive) {
@@ -134,6 +260,94 @@ body.goreecloud-backup :where(.table-responsive) {
   border-radius: var(--glaze-radius-lg);
   background: var(--glaze-surface-strong);
   box-shadow: var(--glaze-shadow-soft);
+  overflow: auto;
+}
+
+body.goreecloud-backup :where(.table thead th) {
+  color: var(--glaze-muted);
+  background: var(--glaze-surface-muted);
+  font-size: .8rem;
+  font-weight: 800;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+body.goreecloud-backup :where(.alert) {
+  border: 1px solid var(--glaze-line);
+  border-radius: var(--glaze-radius-lg);
+  color: var(--glaze-text);
+  background: var(--glaze-surface-strong);
+  box-shadow: var(--glaze-shadow-soft);
+}
+
+body.goreecloud-backup :where(.alert-success) {
+  border-color: color-mix(in srgb, var(--glaze-success) 32%, var(--glaze-line));
+  background: color-mix(in srgb, var(--glaze-success) 9%, var(--glaze-surface-strong));
+}
+
+body.goreecloud-backup :where(.alert-warning) {
+  border-color: color-mix(in srgb, var(--glaze-warning) 32%, var(--glaze-line));
+  background: color-mix(in srgb, var(--glaze-warning) 9%, var(--glaze-surface-strong));
+}
+
+body.goreecloud-backup :where(.alert-danger) {
+  border-color: color-mix(in srgb, var(--glaze-danger) 32%, var(--glaze-line));
+  background: color-mix(in srgb, var(--glaze-danger) 9%, var(--glaze-surface-strong));
+}
+
+body.goreecloud-backup .progress {
+  min-height: .65rem;
+  border-radius: var(--glaze-radius-pill);
+  background: color-mix(in srgb, var(--glaze-muted) 12%, var(--glaze-surface-muted));
+  overflow: hidden;
+}
+
+body.goreecloud-backup .progress-bar {
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--glaze-accent), var(--glaze-accent-2));
+  transition: width var(--glaze-motion-standard) var(--glaze-ease-standard);
+}
+
+body.goreecloud-backup :where(.spinner-border, .spinner-grow) {
+  color: var(--glaze-accent);
+}
+
+body.goreecloud-backup :where(.breadcrumb) {
+  --bs-breadcrumb-divider-color: var(--glaze-muted);
+  --bs-breadcrumb-item-active-color: var(--glaze-muted);
+  gap: var(--glaze-space-1);
+  color: var(--glaze-muted);
+}
+
+body.goreecloud-backup :where(.pagination) {
+  gap: var(--glaze-space-1);
+}
+
+body.goreecloud-backup .page-link {
+  color: var(--glaze-accent);
+  background: var(--glaze-surface-muted);
+}
+
+body.goreecloud-backup .page-item.active .page-link {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--glaze-accent), var(--glaze-accent-2));
+}
+
+body.goreecloud-backup :where(code, kbd, pre) {
+  border-radius: var(--glaze-radius-sm);
+  color: var(--glaze-text);
+  background: color-mix(in srgb, var(--glaze-muted) 9%, var(--glaze-surface-muted));
+}
+
+body.goreecloud-backup code {
+  padding: .15em .35em;
+}
+
+body.goreecloud-backup pre {
+  padding: var(--glaze-space-4);
+  border: 1px solid var(--glaze-line);
+  overflow: auto;
 }
 
 body.goreecloud-backup :where(.text-muted, .form-text) {
@@ -142,15 +356,63 @@ body.goreecloud-backup :where(.text-muted, .form-text) {
 
 body.goreecloud-backup a:not(.btn) {
   color: var(--glaze-accent);
+  text-underline-offset: .18em;
 }
 
 body.goreecloud-backup :where(.badge, .rounded-pill) {
   border-radius: var(--glaze-radius-pill) !important;
 }
 
+body.goreecloud-backup :where(.badge.bg-success) {
+  background-color: var(--glaze-success) !important;
+}
+
+body.goreecloud-backup :where(.badge.bg-warning) {
+  color: #17120a !important;
+  background-color: var(--glaze-warning) !important;
+}
+
+body.goreecloud-backup :where(.badge.bg-danger) {
+  background-color: var(--glaze-danger) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body.goreecloud-backup .card:hover {
+    border-color: color-mix(in srgb, var(--glaze-accent) 18%, var(--glaze-line));
+    box-shadow: var(--glaze-shadow-raised);
+  }
+
+  body.goreecloud-backup :where(.btn-primary, .btn-outline-primary):hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+@media (pointer: coarse) {
+  body.goreecloud-backup :where(.btn, .form-control, .form-select, .page-link, .nav-link, .dropdown-item) {
+    min-height: var(--glaze-target-comfortable);
+  }
+}
+
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   body.goreecloud-backup :where(.navbar, .offcanvas, .modal-content, .dropdown-menu, .popover, .toast) {
     background: var(--glaze-surface-strong) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.goreecloud-backup *,
+  body.goreecloud-backup *::before,
+  body.goreecloud-backup *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+
+  body.goreecloud-backup :where(.btn, .page-link):active:not(:disabled),
+  body.goreecloud-backup :where(.btn-primary, .btn-outline-primary):hover:not(:disabled),
+  body.goreecloud-backup .card:hover {
+    transform: none;
   }
 }
 
@@ -162,9 +424,23 @@ body.goreecloud-backup :where(.badge, .rounded-pill) {
   }
 }
 
+@media (prefers-contrast: more) {
+  body.goreecloud-backup {
+    --glaze-line: color-mix(in srgb, currentColor 28%, transparent);
+  }
+
+  body.goreecloud-backup :where(.card, .accordion-item, .modal-content, .dropdown-menu, .toast, .table-responsive, .alert) {
+    border-width: 2px;
+  }
+
+  body.goreecloud-backup :where(.text-muted, .form-text) {
+    color: var(--glaze-text) !important;
+  }
+}
+
 @media (forced-colors: active) {
   body.goreecloud-backup,
-  body.goreecloud-backup :where(.navbar, .offcanvas, .card, .accordion-item, .modal-content, .dropdown-menu, .popover, .toast, .table-responsive) {
+  body.goreecloud-backup :where(.navbar, .offcanvas, .card, .accordion-item, .modal-content, .dropdown-menu, .popover, .toast, .table-responsive, .alert) {
     background: Canvas !important;
     color: CanvasText;
     border-color: ButtonText;
@@ -172,8 +448,13 @@ body.goreecloud-backup :where(.badge, .rounded-pill) {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+
+  body.goreecloud-backup :where(.btn, .form-control, .form-select, .form-check-input, .page-link):focus-visible {
+    outline-color: Highlight;
+  }
 }
 
+/* Compact: 0-599px. Prioritize touch, stacked composition, and viewport-safe overlays. */
 @media (max-width: 599px) {
   body.goreecloud-backup :where(.container, .container-fluid) {
     padding-inline: var(--glaze-space-3);
@@ -181,5 +462,70 @@ body.goreecloud-backup :where(.badge, .rounded-pill) {
 
   body.goreecloud-backup :where(.modal-dialog) {
     margin: var(--glaze-space-2);
+  }
+
+  body.goreecloud-backup .modal-content {
+    border-radius: var(--glaze-radius-lg);
+  }
+
+  body.goreecloud-backup :where(.btn-group:not(.btn-group-vertical)) {
+    flex-wrap: wrap;
+    gap: var(--glaze-space-2);
+  }
+
+  body.goreecloud-backup :where(.table-responsive) {
+    margin-inline: calc(var(--glaze-space-3) * -1);
+    border-radius: var(--glaze-radius-md);
+  }
+}
+
+/* Medium: 600-1023px. Preserve touch comfort with more breathing room. */
+@media (min-width: 600px) and (max-width: 1023px) {
+  body.goreecloud-backup :where(.modal-dialog) {
+    max-width: min(92vw, 720px);
+  }
+
+  body.goreecloud-backup :where(.container, .container-fluid) {
+    --bs-gutter-x: 2rem;
+  }
+}
+
+/* Expanded: 1024-1439px. Increase information density without losing Glaze spacing. */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  body.goreecloud-backup :where(.container, .container-fluid) {
+    --bs-gutter-x: 2.5rem;
+  }
+
+  body.goreecloud-backup :where(.modal-dialog.modal-lg) {
+    max-width: min(88vw, 960px);
+  }
+}
+
+/* Wide: 1440px+. Bound reading width while allowing data-heavy surfaces to breathe. */
+@media (min-width: 1440px) {
+  body.goreecloud-backup :where(.container:not(.container-fluid)) {
+    max-width: min(var(--glaze-content-max), calc(100vw - 6rem));
+  }
+
+  body.goreecloud-backup :where(.modal-dialog.modal-xl) {
+    max-width: min(86vw, 1280px);
+  }
+}
+
+@media print {
+  body.goreecloud-backup {
+    color: #000;
+    background: #fff !important;
+  }
+
+  body.goreecloud-backup :where(.navbar, .offcanvas, .modal, .toast-container) {
+    display: none !important;
+  }
+
+  body.goreecloud-backup :where(.card, .table-responsive, .alert) {
+    color: #000;
+    background: #fff !important;
+    box-shadow: none;
+    border-color: #bbb;
   }
 }
