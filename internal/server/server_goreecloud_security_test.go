@@ -1,0 +1,86 @@
+package server
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
+
+	"github.com/kopia/kopia/internal/auth"
+)
+
+func TestGoreeCloudAuthenticationCookieSecurity(t *testing.T) {
+	const (
+		username = "goreecloud-admin"
+		password = "test-password"
+	)
+
+	s := &Server{
+		authenticator:        auth.AuthenticateSingleUser(username, password),
+		authCookieSigningKey: []byte("goreecloud-auth-cookie-test-signing-key"),
+		options:               Options{LogRequests: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "https://backup.goreecloud.test/api/v1/repo/status", nil)
+	req.SetBasicAuth(username, password)
+	rr := httptest.NewRecorder()
+
+	require.True(t, s.isAuthenticated(requestContext{w: rr, req: req, srv: s}))
+
+	var authCookie *http.Cookie
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == kopiaAuthCookie {
+			authCookie = cookie
+			break
+		}
+	}
+
+	require.NotNil(t, authCookie, "successful authentication must issue the bounded optimization cookie")
+	require.True(t, authCookie.HttpOnly, "authentication cookie must not be readable by browser scripts")
+	require.True(t, authCookie.Secure, "authentication cookie must only be sent over secure transport")
+	require.Equal(t, http.SameSiteStrictMode, authCookie.SameSite, "authentication cookie must use strict same-site isolation")
+	require.Equal(t, "/", authCookie.Path)
+	require.False(t, authCookie.Expires.IsZero())
+	require.True(t, s.isAuthCookieValid(username, authCookie.Value))
+	require.False(t, s.isAuthCookieValid("different-user", authCookie.Value), "cookie subject must be bound to the authenticated user")
+}
+
+func TestGoreeCloudAuthenticationCookieRejectsWrongIssuerAndAudience(t *testing.T) {
+	s := &Server{authCookieSigningKey: []byte("goreecloud-auth-cookie-test-signing-key")}
+	now := time.Now()
+
+	makeToken := func(issuer string, audience jwt.ClaimStrings) string {
+		t.Helper()
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, &jwt.RegisteredClaims{
+			Subject:   "goreecloud-admin",
+			NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			Audience:  audience,
+			Issuer:    issuer,
+		}).SignedString(s.authCookieSigningKey)
+		require.NoError(t, err)
+		return token
+	}
+
+	require.False(t, s.isAuthCookieValid("goreecloud-admin", makeToken("unexpected-issuer", jwt.ClaimStrings{kopiaAuthCookieAudience})))
+	require.False(t, s.isAuthCookieValid("goreecloud-admin", makeToken(kopiaAuthCookieIssuer, jwt.ClaimStrings{"unexpected-audience"})))
+}
+
+func TestGoreeCloudAuthenticationDeniesInvalidCredentials(t *testing.T) {
+	s := &Server{
+		authenticator:        auth.AuthenticateSingleUser("goreecloud-admin", "correct-password"),
+		authCookieSigningKey: []byte("goreecloud-auth-cookie-test-signing-key"),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "https://backup.goreecloud.test/api/v1/repo/status", nil)
+	req.SetBasicAuth("submitted-user-must-not-be-logged", "wrong-password")
+	rr := httptest.NewRecorder()
+
+	require.False(t, s.isAuthenticated(requestContext{w: rr, req: req, srv: s}))
+	require.Equal(t, http.StatusUnauthorized, rr.Code)
+	require.Equal(t, `Basic realm="Kopia"`, rr.Header().Get("WWW-Authenticate"))
+}
