@@ -113,9 +113,13 @@ Before Stable approval, the target candidate must prove:
 - sensitive paths, filenames, repository locations, IP addresses, and user-agent details are minimized according to the observability contract;
 - no remote analytics, advertising, tracking, third-party fonts, or unapproved remote UI runtime is required by the GoreeCloud-owned Glaze layer.
 
-### Known source-level authentication/logging gap
+### Source authentication-hardening checkpoint
 
-The inherited HTTP authentication implementation currently records remote address and submitted username for a failed login and may record remote address plus username for successful login when request logging is enabled. The authentication cookie construction also has not yet been reconciled with the GoreeCloud explicit cookie-attribute release contract. These items remain release blockers and must be changed and regression-tested before Stable classification.
+The maintained HTTP authentication path now emits structured `auth.failed`, `auth.succeeded`, and `auth.cookie.error` events without interpolating submitted usernames or client remote addresses into authentication telemetry. Missing and invalid credentials use bounded reason categories.
+
+The short-term authentication optimization cookie is explicitly `HttpOnly`, `Secure`, and `SameSite=Strict`. JWT acceptance is constrained to HS256, the intended issuer, the intended audience, normal temporal validity, and the authenticated subject. `internal/server/server_goreecloud_security_test.go` provides focused regression coverage, and the Wardveil source-security workflow runs those tests directly.
+
+This closes the previously recorded source-level authentication logging/cookie blockers. Stable classification still requires representative target-environment authentication, authorization, CSRF, TLS/proxy, logging-retention, and denied-access validation; the source fix is not treated as proof of deployment security.
 
 ## Wardveil Security gates
 
