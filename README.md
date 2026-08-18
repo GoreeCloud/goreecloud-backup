@@ -166,7 +166,7 @@ The broader inherited build, lint, test, coverage, compatibility, race-detector,
 
 Dependency Review is also intentionally retained. If GitHub repository configuration prevents it from running, that configuration issue remains a readiness item rather than a reason to remove the security gate.
 
-Release evidence is exact-candidate evidence. A passing workflow on an older head does not automatically validate a newer head, and a cancelled superseded workflow is neither a source failure nor a passing result for the replacement candidate.
+Release evidence is exact-candidate evidence. A passing workflow on an older head does not automatically validate a newer head, and a cancelled superseded workflow is neither a source failure nor a passing result for the replacement candidate. The PR remains draft while release-blocking source gaps or exact-head validation remain unresolved.
 
 See [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md) for the complete evidence model.
 
