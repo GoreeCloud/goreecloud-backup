@@ -43,6 +43,7 @@ REQUIRED_GITIGNORE_LINES = {
 REQUIRED_SECURITY_TEXT = (
     "Reusable secrets must not be committed", "govulncheck", "go mod verify",
     "target-environment backup and representative restore evidence",
+    "Security evidence is exact-candidate evidence",
 )
 REQUIRED_UI_PRIVACY_TEXT = ("analytics", "tracking", "third-party fonts", "no remote ui dependencies")
 REQUIRED_WARDVEIL_TEXT = (
