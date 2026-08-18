@@ -80,14 +80,24 @@ FORBIDDEN_AUTH_SOURCE_TEXT = (
     "successful login by client",
     "rc.req.RemoteAddr, username",
 )
-REQUIRED_REQUEST_INTEGRITY_SOURCE_TEXT = (
-    'Warnw("request integrity denied", "event", "request.csrf.denied", "path", r.URL.Path)',
+REQUIRED_REQUEST_SOURCE_TEXT = (
     'Debugf("request %v (%v bytes)", rc.req.URL.Path, len(body))',
     'Debugf("%v: error code %v message %v", rc.req.URL.Path, err.apiErrorCode, err.message)',
 )
 FORBIDDEN_REQUEST_LOG_SOURCE_TEXT = (
     'Debugf("request %v (%v bytes)", rc.req.URL, len(body))',
     'Debugf("%v: error code %v message %v", rc.req.URL, err.apiErrorCode, err.message)',
+)
+REQUIRED_CSRF_SOURCE_TEXT = (
+    '"reason", "missing_session_cookie"',
+    '"reason", "missing_token"',
+    '"reason", "invalid_token"',
+    '"event", "request.csrf.denied"',
+)
+FORBIDDEN_CSRF_LOG_SOURCE_TEXT = (
+    "got invalid CSRF token for %v: %v, want %v, session %v",
+    'Warnf("missing CSRF token',
+    'Warnf("missing or invalid session cookie',
 )
 REQUIRED_SECURITY_WORKFLOW_TEXT = (
     "Wardveil source security",
@@ -210,13 +220,21 @@ def validate_authentication_security_contract(failures: list[str]) -> None:
 
 
 def validate_request_integrity_contract(failures: list[str]) -> None:
-    source = (ROOT / "internal/server/server.go").read_text(encoding="utf-8")
-    for marker in REQUIRED_REQUEST_INTEGRITY_SOURCE_TEXT:
-        if marker not in source:
-            failures.append(f"HTTP request-integrity boundary missing privacy/security marker: {marker!r}")
+    server_source = (ROOT / "internal/server/server.go").read_text(encoding="utf-8")
+    for marker in REQUIRED_REQUEST_SOURCE_TEXT:
+        if marker not in server_source:
+            failures.append(f"HTTP request logging boundary missing privacy marker: {marker!r}")
     for marker in FORBIDDEN_REQUEST_LOG_SOURCE_TEXT:
-        if marker in source:
+        if marker in server_source:
             failures.append(f"HTTP request logging may expose raw query strings: {marker!r}")
+
+    csrf_source = (ROOT / "internal/server/server_authz_checks.go").read_text(encoding="utf-8")
+    for marker in REQUIRED_CSRF_SOURCE_TEXT:
+        if marker not in csrf_source:
+            failures.append(f"CSRF request-integrity boundary missing sanitized event marker: {marker!r}")
+    for marker in FORBIDDEN_CSRF_LOG_SOURCE_TEXT:
+        if marker in csrf_source:
+            failures.append(f"CSRF request-integrity logging may expose security-sensitive values: {marker!r}")
 
 
 def validate_shell_security_contract(failures: list[str]) -> None:
