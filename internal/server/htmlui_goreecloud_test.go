@@ -22,10 +22,11 @@ func TestGoreeCloudAssetFileTransformsIndex(t *testing.T) {
 	ui := newGoreeCloudAssetFile(base)
 	f, err := ui.Open("index.html")
 	require.NoError(t, err)
-	defer f.Close()
 
 	data, err := io.ReadAll(f)
 	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
 	html := string(data)
 
 	require.Contains(t, html, "<title>GoreeCloud Backup</title>")
@@ -45,10 +46,10 @@ func TestGoreeCloudAssetFileDelegatesUpstreamAssets(t *testing.T) {
 
 	f, err := newGoreeCloudAssetFile(base).Open("asset.txt")
 	require.NoError(t, err)
-	defer f.Close()
 
 	data, err := io.ReadAll(f)
 	require.NoError(t, err)
+	require.NoError(t, f.Close())
 	require.Equal(t, "upstream", string(data))
 }
 
