@@ -5,6 +5,8 @@ on:
     branches: [ master ]
     paths:
       - 'internal/server/**'
+      - 'docs/goreecloud/GLAZE_UI_CONFORMANCE.md'
+      - 'scripts/validate_goreecloud_ui.py'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/goreecloud-ui.yml'
@@ -12,6 +14,8 @@ on:
     branches: [ master, 'agent/**' ]
     paths:
       - 'internal/server/**'
+      - 'docs/goreecloud/GLAZE_UI_CONFORMANCE.md'
+      - 'scripts/validate_goreecloud_ui.py'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/goreecloud-ui.yml'
@@ -35,11 +39,14 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          check-latest: true
+          check-latest: false
           cache: true
 
       - name: Verify module graph
         run: go mod verify
+
+      - name: Validate Glaze UI source contract
+        run: python3 scripts/validate_goreecloud_ui.py
 
       - name: Test server package
         run: go test ./internal/server/...
