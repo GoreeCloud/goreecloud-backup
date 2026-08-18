@@ -1,0 +1,185 @@
+/*
+ * GoreeCloud Backup Glaze UI adapter.
+ *
+ * This stylesheet maps the current upstream React/Bootstrap presentation onto the canonical
+ * Glaze UI semantic foundation without changing application behavior or backup semantics.
+ * Keep selectors intentionally broad and presentation-only until GoreeCloud owns the complete
+ * frontend source boundary.
+ */
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body.goreecloud-backup {
+  margin: 0;
+  color: var(--glaze-text);
+  background:
+    radial-gradient(circle at 16% -10%, color-mix(in srgb, var(--glaze-accent) 16%, transparent), transparent 32rem),
+    radial-gradient(circle at 85% 5%, color-mix(in srgb, var(--glaze-accent-2) 11%, transparent), transparent 30rem),
+    linear-gradient(180deg, var(--glaze-canvas-accent), var(--glaze-canvas));
+  background-attachment: fixed;
+}
+
+body.goreecloud-backup :where(.navbar, .offcanvas, .card, .list-group-item, .accordion-item) {
+  color: var(--glaze-text);
+  border-color: var(--glaze-line);
+}
+
+body.goreecloud-backup :where(.navbar, .offcanvas) {
+  background: color-mix(in srgb, var(--glaze-surface-strong) 88%, transparent) !important;
+  -webkit-backdrop-filter: blur(var(--glaze-blur)) saturate(135%);
+  backdrop-filter: blur(var(--glaze-blur)) saturate(135%);
+  box-shadow: var(--glaze-shadow-soft);
+}
+
+body.goreecloud-backup :where(.card, .accordion-item) {
+  border-radius: var(--glaze-radius-lg);
+  background: var(--glaze-surface-strong);
+  box-shadow: var(--glaze-shadow-soft);
+  overflow: clip;
+}
+
+body.goreecloud-backup .card-header,
+body.goreecloud-backup .card-footer,
+body.goreecloud-backup .accordion-button {
+  color: var(--glaze-text);
+  background: var(--glaze-surface-muted);
+  border-color: var(--glaze-line);
+}
+
+body.goreecloud-backup :where(.modal-content, .dropdown-menu, .popover, .toast) {
+  color: var(--glaze-text);
+  border: 1px solid var(--glaze-line);
+  border-radius: var(--glaze-radius-lg);
+  background: color-mix(in srgb, var(--glaze-surface-strong) 92%, transparent);
+  box-shadow: var(--glaze-shadow-overlay);
+  -webkit-backdrop-filter: blur(var(--glaze-blur-overlay)) saturate(140%);
+  backdrop-filter: blur(var(--glaze-blur-overlay)) saturate(140%);
+}
+
+body.goreecloud-backup :where(.btn, .form-control, .form-select, .input-group-text, .page-link) {
+  min-height: var(--glaze-target-min);
+  border-color: var(--glaze-line);
+  border-radius: var(--glaze-radius-control);
+  transition:
+    transform var(--glaze-motion-fast) var(--glaze-ease-standard),
+    background var(--glaze-motion-fast) var(--glaze-ease-standard),
+    border-color var(--glaze-motion-fast) var(--glaze-ease-standard),
+    box-shadow var(--glaze-motion-fast) var(--glaze-ease-standard),
+    opacity var(--glaze-motion-fast) var(--glaze-ease-standard);
+}
+
+body.goreecloud-backup :where(.form-control, .form-select, .input-group-text) {
+  color: var(--glaze-text);
+  background-color: var(--glaze-surface-muted);
+}
+
+body.goreecloud-backup :where(.form-control, .form-select)::placeholder {
+  color: var(--glaze-muted);
+  opacity: 1;
+}
+
+body.goreecloud-backup .btn-primary {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, var(--glaze-accent), var(--glaze-accent-2));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--glaze-accent) 26%, transparent);
+}
+
+body.goreecloud-backup .btn-outline-primary {
+  color: var(--glaze-accent);
+  border-color: color-mix(in srgb, var(--glaze-accent) 42%, var(--glaze-line));
+  background: color-mix(in srgb, var(--glaze-accent) 6%, transparent);
+}
+
+body.goreecloud-backup :where(.btn, .page-link):active:not(:disabled) {
+  transform: scale(.985);
+}
+
+body.goreecloud-backup :where(.btn, .form-control, .form-select, .page-link, .nav-link):focus-visible {
+  outline: var(--glaze-focus-width) solid color-mix(in srgb, var(--glaze-accent) 58%, transparent);
+  outline-offset: var(--glaze-focus-offset);
+  box-shadow: none;
+}
+
+body.goreecloud-backup :where(.nav-tabs, .nav-pills) {
+  gap: var(--glaze-space-2);
+  border-color: var(--glaze-line);
+}
+
+body.goreecloud-backup :where(.nav-tabs .nav-link, .nav-pills .nav-link) {
+  border-radius: var(--glaze-radius-pill);
+  color: var(--glaze-muted);
+}
+
+body.goreecloud-backup :where(.nav-tabs .nav-link.active, .nav-pills .nav-link.active) {
+  color: var(--glaze-text);
+  border-color: var(--glaze-line);
+  background: var(--glaze-surface-strong);
+  box-shadow: var(--glaze-shadow-soft);
+}
+
+body.goreecloud-backup :where(.table) {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--glaze-text);
+  --bs-table-border-color: var(--glaze-line);
+  color: var(--glaze-text);
+}
+
+body.goreecloud-backup :where(.table-responsive) {
+  border: 1px solid var(--glaze-line);
+  border-radius: var(--glaze-radius-lg);
+  background: var(--glaze-surface-strong);
+  box-shadow: var(--glaze-shadow-soft);
+}
+
+body.goreecloud-backup :where(.text-muted, .form-text) {
+  color: var(--glaze-muted) !important;
+}
+
+body.goreecloud-backup a:not(.btn) {
+  color: var(--glaze-accent);
+}
+
+body.goreecloud-backup :where(.badge, .rounded-pill) {
+  border-radius: var(--glaze-radius-pill) !important;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  body.goreecloud-backup :where(.navbar, .offcanvas, .modal-content, .dropdown-menu, .popover, .toast) {
+    background: var(--glaze-surface-strong) !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  body.goreecloud-backup :where(.navbar, .offcanvas, .modal-content, .dropdown-menu, .popover, .toast) {
+    background: var(--glaze-surface-strong) !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (forced-colors: active) {
+  body.goreecloud-backup,
+  body.goreecloud-backup :where(.navbar, .offcanvas, .card, .accordion-item, .modal-content, .dropdown-menu, .popover, .toast, .table-responsive) {
+    background: Canvas !important;
+    color: CanvasText;
+    border-color: ButtonText;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (max-width: 599px) {
+  body.goreecloud-backup :where(.container, .container-fluid) {
+    padding-inline: var(--glaze-space-3);
+  }
+
+  body.goreecloud-backup :where(.modal-dialog) {
+    margin: var(--glaze-space-2);
+  }
+}
