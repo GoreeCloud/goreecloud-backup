@@ -71,6 +71,19 @@ REQUIRED_SECURITY_WORKFLOW_TEXT = (
     "Retain security evidence",
     "retention-days: 30",
 )
+REQUIRED_OBSERVABILITY_TEXT = (
+    "Wardveil Security by GoreeCloud",
+    "Failed-login logging must not echo the submitted username",
+    "Current inherited-source blocker",
+    "Representative restoration remains the authoritative recovery test",
+)
+REQUIRED_READINESS_TEXT = (
+    "not Stable and not approved for production replacement",
+    "Known source-level authentication/logging gap",
+    "GitHub Dependency Graph is disabled",
+    "representative file restore",
+    "Wardveil Security by GoreeCloud",
+)
 
 
 def run_git(*args: str) -> str:
@@ -137,6 +150,18 @@ def validate_ui_security_contract(failures: list[str]) -> None:
             failures.append(f"Glaze UI conformance record missing Wardveil contract marker: {marker!r}")
 
 
+def validate_operational_contracts(failures: list[str]) -> None:
+    observability = (ROOT / "docs/goreecloud/OBSERVABILITY.md").read_text(encoding="utf-8")
+    for marker in REQUIRED_OBSERVABILITY_TEXT:
+        if marker not in observability:
+            failures.append(f"Observability contract missing required marker: {marker!r}")
+
+    readiness = (ROOT / "docs/goreecloud/PRODUCTION_READINESS.md").read_text(encoding="utf-8")
+    for marker in REQUIRED_READINESS_TEXT:
+        if marker not in readiness:
+            failures.append(f"Production-readiness contract missing required marker: {marker!r}")
+
+
 def validate_shell_security_contract(failures: list[str]) -> None:
     shell = (ROOT / "internal/server/htmlui_goreecloud.go").read_text(encoding="utf-8")
     for marker in REQUIRED_SHELL_SECURITY_TEXT:
@@ -177,6 +202,7 @@ def main() -> int:
     validate_gitignore(failures)
     validate_security_policy(failures)
     validate_ui_security_contract(failures)
+    validate_operational_contracts(failures)
     validate_shell_security_contract(failures)
     validate_electron_security_contract(failures)
     validate_workflow_permissions(failures)
