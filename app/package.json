@@ -27,7 +27,10 @@
         "releaseType": "release"
       }
     ],
-    "files": ["public/**/*", "node_modules/**/*"],
+    "files": [
+      "public/**/*",
+      "node_modules/**/*"
+    ],
     "extraResources": [
       {
         "from": "public/preload.js",
@@ -36,7 +39,9 @@
       {
         "from": "resources/${os}",
         "to": ".",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "directories": {
@@ -49,20 +54,29 @@
       "perMachine": false
     },
     "snap": {
-      "publish": ["github"]
+      "publish": [
+        "github"
+      ]
     },
     "win": {
-      "target": ["nsis", "zip"],
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "extraResources": [
         {
           "from": "../dist/kopia_windows_amd64",
           "to": "server",
-          "filter": ["kopia.exe"]
+          "filter": [
+            "kopia.exe"
+          ]
         }
       ],
       "signtoolOptions": {
         "sign": "./sign.mjs",
-        "signingHashAlgorithms": ["sha256"]
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
       }
     },
     "mac": {
@@ -75,18 +89,26 @@
         {
           "from": "../dist/kopia_darwin_universal",
           "to": "server",
-          "filter": ["kopia"]
+          "filter": [
+            "kopia"
+          ]
         }
       ]
     },
     "linux": {
-      "target": ["AppImage", "deb", "rpm"],
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
       "syncDesktopName": true,
       "extraResources": [
         {
           "from": "../dist/kopia_linux_${arch}",
           "to": "server",
-          "filter": ["kopia"]
+          "filter": [
+            "kopia"
+          ]
         }
       ]
     },
@@ -136,8 +158,12 @@
     "extends": "react-app"
   },
   "browserslist": {
-    "production": ["last 1 electron version"],
-    "development": ["last 1 electron version"]
+    "production": [
+      "last 1 electron version"
+    ],
+    "development": [
+      "last 1 electron version"
+    ]
   },
   "overrides": {
     "undici": "^7.29.0",
