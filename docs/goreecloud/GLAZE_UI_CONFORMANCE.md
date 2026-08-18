@@ -21,11 +21,11 @@ The compatibility overlay is temporary. It is not a permanent substitute for own
 
 Wardveil Security by GoreeCloud is the official platform-wide security and protection identity used when GoreeCloud Backup presents security posture, security controls, or protection assurance. Wardveil is a presentation and identity layer; it does not replace the underlying backup engine, repository security model, GoreeCloud policies, or technical authorities.
 
-GoreeCloud Backup may use the approved phrases **Wardveil Security**, **Wardveil**, and **Protected by Wardveil** where the interface is actually communicating security or protection posture. It must not invent unapproved Wardveil module names, and it must not imply that a successful snapshot, a green security scan, or Wardveil branding proves recoverability.
+GoreeCloud Backup may use the approved phrases **Wardveil Security**, **Wardveil**, and **Protected by Wardveil** where the interface is actually communicating security or protection posture and the scope has authoritative evidence. It must not invent unapproved Wardveil module names, and it must not imply that a successful snapshot, a green security scan, process health, or Wardveil branding proves recoverability.
 
 Wardveil-facing surfaces must remain Glaze UI surfaces. They should communicate calm protection, trust, privacy, clarity, and control rather than stereotypical cybersecurity imagery. Security status must always preserve the identity of the underlying control or evidence source so the brand never obscures technical authority.
 
-For GoreeCloud Backup specifically, Wardveil presentation is appropriate for areas such as repository credential protection, vulnerability/update posture, desktop-shell hardening status, secret-handling safeguards, integrity/security findings, and security-related recovery readiness. Recovery state remains governed by GoreeCloud Backup's recovery evidence and restore-verification model.
+For GoreeCloud Backup specifically, Wardveil presentation is appropriate for areas such as repository credential protection, vulnerability/update posture, desktop-shell hardening status, secret-handling safeguards, integrity/security findings, authorization denial, and security-related recovery readiness. Recovery state remains governed by GoreeCloud Backup's recovery evidence and restore-verification model.
 
 ## Component Coverage
 
@@ -38,11 +38,28 @@ The application adapter defines Glaze presentation for the inherited Bootstrap c
 - text inputs, selects, input groups, checkboxes, and switches;
 - tabs, pills, list groups, and selected navigation states;
 - tables and responsive data surfaces;
-- success, warning, and error alerts;
+- success, warning, degraded, denied-access, and error alerts;
 - progress and loading indicators;
 - breadcrumbs, badges, code, and preformatted technical content.
 
 The adapter preserves inherited application behavior and backup semantics. It changes presentation, hierarchy, interaction feedback, and product identity only.
+
+## Application State Contract
+
+GoreeCloud Backup must present operational state deliberately instead of collapsing all non-success conditions into one generic error.
+
+Required Glaze UI state families are:
+
+- **Loading** — work has started or authoritative state is being retrieved. Long-running backup/restore operations must identify what is happening and must not leave an indefinite ambiguous spinner when progress/status information is available.
+- **Success** — the specific requested operation completed. Success copy must identify the operation and must not promote a successful snapshot into a `Restore Verified` or blanket security claim.
+- **Empty** — the queried collection or state is legitimately empty. Empty states should explain the next safe action rather than resemble a failure.
+- **Warning** — attention is required but the operation/service may remain usable.
+- **Degraded** — a required protection, repository, monitoring, verification, or recovery-readiness signal is incomplete, stale, or failing while some service capability remains available.
+- **Denied access** — authentication/authorization/CSRF or other access-control logic rejected the operation. Denied states must not reveal whether hidden protected objects exist or leak authorization internals.
+- **Error** — the requested operation failed. Error surfaces must be actionable, preserve safe diagnostic context, and avoid exposing credentials, repository secrets, protected file contents, or untrusted raw backend output.
+- **Destructive confirmation** — deletion, retention changes, repository maintenance, overwrite restore, credential revocation, or other destructive/recovery-sensitive actions require explicit scope, consequence, and confirmation appropriate to the risk.
+
+Security-related warning, degraded, denied, and error states may carry Wardveil identity where that improves clarity. The originating technical control must remain visible.
 
 ## Adaptive Layout
 
@@ -78,6 +95,8 @@ The GoreeCloud-owned Glaze layer introduces **No remote UI dependencies**. The v
 
 Inherited Kopia frontend dependencies and external service/provider behavior are separate compatibility and upstream-maintenance concerns. They are not reclassified as Glaze UI dependencies.
 
+Error, diagnostic, and Wardveil security surfaces must not render reusable credentials, raw authentication material, protected backup contents, or other sensitive values merely because a backend error included them. Production-facing error mapping and log/display redaction remain part of runtime acceptance.
+
 ## Product Identity
 
 The application name and browser metadata are GoreeCloud Backup. Required Kopia licensing and attribution remain preserved separately from user-facing product identity.
@@ -111,7 +130,9 @@ Source conformance does not equal stable release. **Visual acceptance pending** 
 - reduced-motion behavior;
 - reduced-transparency and no-blur fallbacks;
 - increased-contrast and forced-colors behavior;
-- loading, empty, warning, error, and destructive states;
+- loading, success, empty, warning, degraded, denied-access, error, and destructive states;
+- long-running backup and restore feedback without silent/ambiguous failure;
+- safe error redaction and actionable diagnostic presentation;
 - consistent product identity across primary and secondary screens;
 - correct Wardveil Security presentation wherever security posture is surfaced;
 - a unique GoreeCloud Backup icon, favicon, and supported launcher surfaces;
