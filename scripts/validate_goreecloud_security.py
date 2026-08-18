@@ -29,6 +29,12 @@ ALLOWED_SENSITIVE_PATHS = {
     ".env.template",
 }
 
+# This validator contains the detection signatures themselves, so it is excluded
+# from content scanning while still being covered by ordinary source review/CI.
+CONTENT_SCAN_EXCLUSIONS = {
+    "scripts/validate_goreecloud_security.py",
+}
+
 HIGH_CONFIDENCE_SECRET_PATTERNS = (
     ("private key block", re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----")),
     ("GitHub token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b")),
@@ -100,6 +106,9 @@ def validate_paths(paths: list[str], failures: list[str]) -> None:
 
 def validate_content(paths: list[str], failures: list[str]) -> None:
     for path in paths:
+        if path in CONTENT_SCAN_EXCLUSIONS:
+            continue
+
         candidate = ROOT / path
         if not candidate.is_file():
             continue
