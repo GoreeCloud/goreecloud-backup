@@ -115,13 +115,15 @@ Integration work should:
 
 ## Known source blockers
 
-The following source issues are release-blocking at the current checkpoint:
+The previously recorded HTTP authentication logging and short-term authentication-cookie source blockers have been remediated in the maintained branch and now have focused regression coverage plus Wardveil source-security enforcement.
 
-- inherited HTTP authentication logging records remote address and submitted username on failed login and may record remote address plus username on successful login when request logging is enabled;
-- the inherited short-term authentication cookie still requires explicit `HttpOnly`, `Secure`, and intentional `SameSite` review/test evidence;
+The current source/repository blocker is:
+
 - Dependency Review cannot operate until GitHub Dependency Graph is enabled for the fork.
 
-These blockers must remain visible in `SECURITY.md`, `docs/goreecloud/OBSERVABILITY.md`, and `docs/goreecloud/PRODUCTION_READINESS.md` until corrected or covered by an explicit approved exception. Convenience is not an exception.
+Separate release blockers remain outside that source defect: approved canonical GoreeCloud Backup artwork has not yet been supplied, representative packaged-runtime/Glaze accessibility acceptance remains outstanding, and target-environment backup/restore/monitoring acceptance is still required.
+
+Any new source blocker must remain visible in `SECURITY.md`, `docs/goreecloud/OBSERVABILITY.md`, and `docs/goreecloud/PRODUCTION_READINESS.md` until corrected or covered by an explicit approved exception. Convenience is not an exception.
 
 ## Pull-request acceptance
 
