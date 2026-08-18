@@ -16,6 +16,7 @@ import (
 const (
 	goreeCloudUIAssetPrefix = "goreecloud-ui/"
 	goreeCloudHeadMarker    = "<!-- goreecloud-backup-ui -->"
+	goreeCloudCSP           = "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-src 'none'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:"
 )
 
 //go:embed goreecloud-ui/*
@@ -98,6 +99,7 @@ func applyGoreeCloudHTMLIdentity(contents []byte) []byte {
     <meta name="robots" content="noindex,nofollow,noarchive" />
     <meta name="color-scheme" content="light dark" />
     <meta name="goreecloud-security-identity" content="Wardveil Security by GoreeCloud" />
+    <meta http-equiv="Content-Security-Policy" content="` + goreeCloudCSP + `" />
     <meta name="theme-color" content="#172033" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0d1119" media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="/goreecloud-ui/glaze.css" />
