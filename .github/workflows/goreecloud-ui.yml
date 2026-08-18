@@ -45,6 +45,12 @@ jobs:
       - name: Verify module graph
         run: go mod verify
 
+      - name: Verify GoreeCloud Go formatting
+        run: |
+          go run github.com/kopia/kopia/tools/gettool --tool linter:2.6.1 --output-dir tools/.tools/golangci-lint-2.6.1
+          tools/.tools/golangci-lint-2.6.1/golangci-lint fmt internal/server/htmlui_goreecloud.go internal/server/htmlui_goreecloud_test.go
+          git diff --exit-code -- internal/server/htmlui_goreecloud.go internal/server/htmlui_goreecloud_test.go
+
       - name: Validate Glaze UI source contract
         run: python3 scripts/validate_goreecloud_ui.py
 
