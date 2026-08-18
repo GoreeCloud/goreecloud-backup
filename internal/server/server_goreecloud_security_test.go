@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/fstest"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
 	"github.com/kopia/kopia/internal/apiclient"
@@ -114,4 +116,35 @@ func TestGoreeCloudRequestIntegrityValidatesCSRFTokenWithoutExposingSecrets(t *t
 	missingSessionRequest := httptest.NewRequest(http.MethodPost, "https://backup.goreecloud.test/api/v1/sources", http.NoBody)
 	missingSessionRequest.Header.Set(apiclient.CSRFTokenHeader, "submitted-csrf-secret-test-value")
 	require.False(t, s.validateCSRFToken(missingSessionRequest))
+}
+
+func TestGoreeCloudUISessionCookieSecurity(t *testing.T) {
+	s := &Server{authCookieSigningKey: []byte("goreecloud-ui-session-test-signing-key")}
+	router := mux.NewRouter()
+	uiFS := http.FS(fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><head></head><body>GoreeCloud Backup</body></html>")},
+	})
+
+	s.ServeStaticFiles(router, uiFS)
+
+	req := httptest.NewRequest(http.MethodGet, "https://backup.goreecloud.test/", http.NoBody)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var sessionCookie *http.Cookie
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == kopiaSessionCookie {
+			sessionCookie = cookie
+			break
+		}
+	}
+
+	require.NotNil(t, sessionCookie, "UI bootstrap must issue a CSRF-bound session cookie")
+	require.NotEmpty(t, sessionCookie.Value)
+	require.Equal(t, "/", sessionCookie.Path)
+	require.True(t, sessionCookie.HttpOnly, "UI session cookie must not be readable by browser scripts")
+	require.True(t, sessionCookie.Secure, "UI session cookie must only be sent over secure transport")
+	require.Equal(t, http.SameSiteStrictMode, sessionCookie.SameSite, "UI session cookie must use strict same-site isolation")
 }
