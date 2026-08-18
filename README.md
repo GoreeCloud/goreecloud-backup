@@ -1,78 +1,75 @@
-Kopia
-=====
+# GoreeCloud Backup
 
-![Kopia](icons/kopia.svg)
-[![Build Status](https://github.com/kopia/kopia/workflows/Build/badge.svg)](https://github.com/kopia/kopia/actions?query=workflow%3ABuild)
-[![GoDoc](https://godoc.org/github.com/kopia/kopia/repo?status.svg)](https://godoc.org/github.com/kopia/kopia/repo)
-[![Coverage Status](https://codecov.io/gh/kopia/kopia/branch/master/graph/badge.svg?token=CRK4RMRFSH)](https://codecov.io/gh/kopia/kopia)[![Go Report Card](https://goreportcard.com/badge/github.com/kopia/kopia)](https://goreportcard.com/report/github.com/kopia/kopia)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg)](CODE_OF_CONDUCT.md)
-[![Docker Pulls](https://img.shields.io/docker/pulls/kopia/kopia)](https://hub.docker.com/r/kopia/kopia/tags?page=1&ordering=name)
-[![Downloads](https://img.shields.io/github/downloads/kopia/kopia/total.svg)](https://github.com/kopia/kopia/releases)
-[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Kopia%20Guru-006BFF)](https://gurubase.io/g/kopia)
+GoreeCloud Backup is the GoreeCloud-maintained backup and recovery platform built on the mature [Kopia](https://github.com/kopia/kopia) codebase.
 
-> _n._
->
-> 1. _[copy, replica](https://en.wikipedia.org/wiki/Replica) (Polish)_
-> 2. _[lance, spear](https://en.wikipedia.org/wiki/Kopia)_
-> 3. _[fast and secure backup tool](https://kopia.io)_
+> **Development status:** early maintained-fork foundation. This repository is not yet approved to replace any existing production Kopia deployment or repository.
 
+## Project direction
 
-Kopia is a fast and secure open-source backup/restore tool that allows you to create [encrypted](https://kopia.io/docs/features/#user-controlled-end-to-end-encryption) snapshots of your data and save the snapshots to [remote or cloud storage](https://kopia.io/docs/features/#save-snapshots-to-cloud-network-or-local-storage) of your choice, [to network-attached storage or server](https://kopia.io/docs/features/#save-snapshots-to-cloud-network-or-local-storage), or [locally on your machine](https://kopia.io/docs/features/#save-snapshots-to-cloud-network-or-local-storage). Kopia does not 'image' your whole machine. Rather, Kopia allows you to backup/restore any and all files/directories that you deem are important or critical.
+GoreeCloud Backup preserves Kopia's proven backup engine while GoreeCloud develops its own product layer, operational model, recovery verification, integrations, Glaze UI experience, and long-term fork-to-native transition path.
 
-Kopia has both [CLI (command-line interface)](https://kopia.io/docs/features/#both-command-line-and-graphical-user-interfaces) and [GUI (graphical user interface)](https://kopia.io/docs/features/#both-command-line-and-graphical-user-interfaces) versions, making it the perfect tool for both advanced and regular users. You can read more about Kopia's unique [features](https://kopia.io/docs/features/) -- which include [compression](https://kopia.io/docs/features/#compression), [deduplication](https://kopia.io/docs/features/#backup-files-and-directories-using-snapshots), [user-controlled end-to-end encryption](https://kopia.io/docs/features/#user-controlled-end-to-end-encryption), and [error correction](https://kopia.io/docs/features/#error-correction) -- to get a better understanding of how Kopia works.
+The project is recovery-first: creating a snapshot is not by itself evidence that data is recoverable. GoreeCloud Backup is being designed around repository integrity, meaningful retention, monitoring, restore testing, recovery evidence, and clear protection states.
 
-When ready, head to the [installation](https://kopia.io/docs/installation/) page to download and install Kopia, and make sure to read the [Getting Started Guide](https://kopia.io/docs/getting-started/) for a step-by-step walkthrough of how to use Kopia.
+Initial priorities are:
 
-Pick the Cloud Storage Provider You Want
----
+- preserve upstream repository compatibility and recovery behavior where practical;
+- maintain explicit upstream provenance and Apache-2.0 licensing obligations;
+- establish controlled GoreeCloud build, security, and release workflows;
+- introduce the GoreeCloud Backup product identity without hiding the Kopia foundation;
+- integrate the Glaze UI design language progressively rather than through a risky one-shot rewrite;
+- add GoreeCloud-specific backup policy, verification, restore, monitoring, and integration layers;
+- keep existing production backup systems untouched until replacement capability is proven through restoration.
 
-Kopia supports saving your [encrypted](https://kopia.io/docs/features/#user-controlled-end-to-end-encryption) and [compressed](https://kopia.io/docs/features/#compression) snapshots to all of the following [storage locations](https://kopia.io/docs/features/#save-snapshots-to-cloud-network-or-local-storage):
+## Upstream foundation
 
-* **Amazon S3** and any **cloud storage that is compatible with S3**
-* **Azure Blob Storage**
-* **Backblaze B2**
-* **Google Cloud Storage**
-* Any remote server or cloud storage that supports **WebDAV**
-* Any remote server or cloud storage that supports **SFTP**
-* Some of the cloud storage options supported by **Rclone**
-  * Requires you to download and setup Rclone in addition to Kopia, but after that Kopia manages/runs Rclone for you
-  * Rclone support is experimental: not all the cloud storage products supported by Rclone have been tested to work with Kopia, and some may not work with Kopia; Kopia has been tested to work with **Dropbox**, **OneDrive**, and **Google Drive** through Rclone
-* Your local machine and any network-attached storage or server
-* Your own server by setting up a [Kopia Repository Server](https://kopia.io/docs/repository-server/)
+This repository is forked from [`kopia/kopia`](https://github.com/kopia/kopia). Kopia provides the underlying encrypted snapshot, deduplication, compression, repository, storage-backend, CLI, server, and UI foundations that GoreeCloud Backup initially inherits.
 
-And Kopia uses [data deduplication](https://kopia.io/docs/features/#backup-files-and-directories-using-snapshots) to save you money! Read the [repositories help page](https://kopia.io/docs/repositories/) for more information on supported storage locations.
+The exact fork baseline and upstream-maintenance rules are recorded in [UPSTREAM.md](UPSTREAM.md).
 
-With Kopia you are in full control of where to store your snapshots, that is, you pick the storage provider you want to use. You must provision and pay for the storage provider for whatever storage locations you want to use, and then tell Kopia what those storage locations are. You can even use multiple storage locations for different backup repositories if you want. Kopia also supports backing up multiple machines to the same storage location.
+## Architecture
 
-Kopia in Action
----
+The current architecture remains substantially Kopia-derived. GoreeCloud-specific changes will be introduced in controlled layers so that recovery-critical behavior can be validated independently.
 
-Using Kopia via command-line interface:
+Planned product areas include:
 
-[![asciicast](https://asciinema.org/a/ykx6uzEhKY3451fWEnX9nm9uo.svg)](https://asciinema.org/a/ykx6uzEhKY3451fWEnX9nm9uo)
+- backup and snapshot management;
+- repositories and storage targets;
+- retention policies;
+- integrity verification;
+- guided restores and restore testing;
+- protection-state evaluation;
+- recovery evidence;
+- GoreeCloud Manager integration;
+- GoreeCloud Monitor integration;
+- GoreeCloud Notify integration;
+- future GoreeCloud Identity integration where appropriate.
 
-Using Kopia via graphical user interface (note: the video is of an older version of Kopia and the interface is different in the current version of Kopia, but the main principles of the interface are the same):
+See [docs/goreecloud/DEVELOPMENT.md](docs/goreecloud/DEVELOPMENT.md) for the maintained-fork development rules.
 
-[![Kopia UI Tutorial](https://img.youtube.com/vi/sHJjSpasWIo/0.jpg)](https://www.youtube.com/watch?v=sHJjSpasWIo)
+## Recovery safety boundary
 
-Getting Started
----
-See [Kopia Documentation](https://kopia.io/docs/) for more information. Also check out the [users forum](https://kopia.discourse.group).
+Development in this repository must not be treated as authorization to modify, remove, migrate, or replace an existing production Kopia repository.
 
-Licensing
----
-Kopia is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text.
+A future production cutover requires separate validation, including representative restoration and recovery-evidence collection. Existing recovery points remain authoritative until a replacement has been proven.
 
-Building Kopia
----
-See [Build Infrastructure](BUILD.md) for more information on building Kopia and working with the source code.
+## Building
 
-Contribution Guidelines
----
-Kopia is open source. For more information see the [Contribution Guidelines](https://kopia.io/docs/contribution-guidelines/).
+The inherited Kopia build infrastructure remains in place during the initial fork phase. See [BUILD.md](BUILD.md) for the current upstream-derived build process.
 
-Reporting Security Issues
----
-If you find a security issue you'd like to disclose privately, please contact `security@kopia.io`.
+GoreeCloud-specific build and release changes will be added incrementally and validated in pull requests before they are relied upon for production artifacts.
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/6b5c1fe4-a0da-4e7e-939b-ff1105251985/deploy-status)](https://app.netlify.com/sites/kopia/deploys)
+## Licensing and attribution
+
+The inherited Kopia code is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
+
+GoreeCloud Backup preserves required upstream copyright, license, notice, provenance, and attribution information. Product branding may change where permitted, but upstream authorship and licensing must not be obscured.
+
+## Upstream Kopia project
+
+For upstream Kopia documentation, releases, support resources, and contribution guidance, use the official Kopia project resources:
+
+- [Kopia repository](https://github.com/kopia/kopia)
+- [Kopia documentation](https://kopia.io/docs/)
+- [Kopia website](https://kopia.io/)
+
+GoreeCloud Backup is independently maintained by GoreeCloud and is not the official Kopia distribution.
