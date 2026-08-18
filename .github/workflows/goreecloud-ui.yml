@@ -5,8 +5,13 @@ on:
     branches: [ master ]
     paths:
       - 'internal/server/**'
+      - 'app/public/**'
+      - 'app/assets/**'
+      - 'branding/**'
       - 'docs/goreecloud/GLAZE_UI_CONFORMANCE.md'
+      - 'docs/goreecloud/ICON_ASSETS.md'
       - 'scripts/validate_goreecloud_ui.py'
+      - 'scripts/validate_goreecloud_icon_assets.py'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/goreecloud-ui.yml'
@@ -14,8 +19,13 @@ on:
     branches: [ master, 'agent/**' ]
     paths:
       - 'internal/server/**'
+      - 'app/public/**'
+      - 'app/assets/**'
+      - 'branding/**'
       - 'docs/goreecloud/GLAZE_UI_CONFORMANCE.md'
+      - 'docs/goreecloud/ICON_ASSETS.md'
       - 'scripts/validate_goreecloud_ui.py'
+      - 'scripts/validate_goreecloud_icon_assets.py'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/goreecloud-ui.yml'
@@ -53,6 +63,9 @@ jobs:
 
       - name: Validate Glaze UI source contract
         run: python3 scripts/validate_goreecloud_ui.py
+
+      - name: Validate GoreeCloud Backup branding and icon contract
+        run: python3 scripts/validate_goreecloud_icon_assets.py
 
       - name: Test server package
         run: go test ./internal/server/...
