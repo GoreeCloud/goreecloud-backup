@@ -34,6 +34,12 @@ type KopiaAPIClient struct {
 	HTTPClient *http.Client
 
 	CSRFToken string
+
+	// testingCSRFSessionCookie is populated only by FetchCSRFTokenForTesting. It allows
+	// inherited HTTP-only httptest servers to exercise CSRF-protected API behavior after
+	// the browser-facing UI session cookie became Secure. Production callers never use
+	// this compatibility path, and HTTPS test clients continue to rely on the cookie jar.
+	testingCSRFSessionCookie *http.Cookie
 }
 
 // Get is a helper that performs HTTP GET on a URL with the specified suffix and decodes the response
@@ -63,10 +69,24 @@ func (c *KopiaAPIClient) Delete(ctx context.Context, urlSuffix string, onNotFoun
 // FetchCSRFTokenForTesting fetches the CSRF token and session cookie for use when making subsequent calls to the API.
 // This simulates the browser behavior of downloading the "/" and is required to call the UI-only methods.
 func (c *KopiaAPIClient) FetchCSRFTokenForTesting(ctx context.Context) error {
-	var b []byte
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.actualURL("/"), http.NoBody)
+	if err != nil {
+		return errors.Wrap(err, "error creating CSRF bootstrap request")
+	}
 
-	if err := c.Get(ctx, "/", nil, &b); err != nil {
-		return err
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "error fetching CSRF bootstrap")
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return decodeResponse(resp, nil)
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "unable to read CSRF bootstrap response")
 	}
 
 	re := regexp.MustCompile(`<meta name="kopia-csrf-token" content="(.*)" />`)
@@ -77,6 +97,20 @@ func (c *KopiaAPIClient) FetchCSRFTokenForTesting(ctx context.Context) error {
 	}
 
 	c.CSRFToken = string(match[1])
+	c.testingCSRFSessionCookie = nil
+
+	// Secure cookies are intentionally withheld by a normal cookie jar on HTTP.
+	// A number of inherited unit tests intentionally use an HTTP httptest server,
+	// so retain the server-issued session cookie for that test-only compatibility
+	// path. HTTPS tests and all non-testing client use remain standards-compliant.
+	if req.URL.Scheme == "http" {
+		for _, cookie := range resp.Cookies() {
+			if cookie.Secure {
+				c.testingCSRFSessionCookie = cookie
+				break
+			}
+		}
+	}
 
 	return nil
 }
@@ -102,6 +136,10 @@ func (c *KopiaAPIClient) runRequest(ctx context.Context, method, url string, not
 
 	if c.CSRFToken != "" {
 		req.Header.Add(CSRFTokenHeader, c.CSRFToken)
+	}
+
+	if c.testingCSRFSessionCookie != nil && req.URL.Scheme == "http" {
+		req.AddCookie(c.testingCSRFSessionCookie)
 	}
 
 	if contentType != "" {
@@ -245,12 +283,11 @@ func NewKopiaAPIClient(options Options) (*KopiaAPIClient, error) {
 	}
 
 	return &KopiaAPIClient{
-		uri,
-		&http.Client{
+		BaseURL: uri,
+		HTTPClient: &http.Client{
 			Jar:       cj,
 			Transport: transport,
 		},
-		"",
 	}, nil
 }
 
