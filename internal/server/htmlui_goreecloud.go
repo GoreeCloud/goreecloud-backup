@@ -5,13 +5,12 @@ package server
 import (
 	"bytes"
 	"embed"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"path"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 const (
@@ -36,7 +35,7 @@ func (f *goreeCloudAssetFileSystem) Open(name string) (http.File, error) {
 	if strings.HasPrefix(cleanName, goreeCloudUIAssetPrefix) {
 		localFile, err := http.FS(goreeCloudUIAssets).Open(cleanName)
 		if err != nil {
-			return nil, errors.Wrap(err, "open GoreeCloud UI asset")
+			return nil, fmt.Errorf("open GoreeCloud UI asset: %w", err)
 		}
 
 		return localFile, nil
@@ -44,7 +43,7 @@ func (f *goreeCloudAssetFileSystem) Open(name string) (http.File, error) {
 
 	upstreamFile, err := f.base.Open(name)
 	if err != nil {
-		return nil, errors.Wrap(err, "open upstream HTML UI asset")
+		return nil, fmt.Errorf("open upstream HTML UI asset: %w", err)
 	}
 
 	if cleanName != "index.html" {
@@ -57,12 +56,12 @@ func (f *goreeCloudAssetFileSystem) Open(name string) (http.File, error) {
 
 	info, err := upstreamFile.Stat()
 	if err != nil {
-		return nil, errors.Wrap(err, "stat upstream HTML UI index")
+		return nil, fmt.Errorf("stat upstream HTML UI index: %w", err)
 	}
 
 	contents, err := io.ReadAll(upstreamFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "read upstream HTML UI index")
+		return nil, fmt.Errorf("read upstream HTML UI index: %w", err)
 	}
 
 	contents = applyGoreeCloudHTMLIdentity(contents)
