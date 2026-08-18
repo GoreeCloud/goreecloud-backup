@@ -2,7 +2,7 @@
 
 GoreeCloud Backup is the GoreeCloud-maintained backup and recovery platform built on the mature [Kopia](https://github.com/kopia/kopia) codebase.
 
-> **Development status:** active maintained-fork development. The GoreeCloud product and Glaze UI source boundary is established and automated, but representative runtime visual acceptance, unique product artwork, and target-environment recovery acceptance remain required before a stable release or production cutover.
+> **Development status:** active maintained-fork development. This candidate is **not Stable and is not approved to replace an existing production Kopia deployment**. The GoreeCloud product, Glaze UI, Wardveil Security, security-evidence, and operational-governance boundaries are established, but source blockers, representative runtime acceptance, unique product artwork, integrations, and target-environment recovery acceptance remain required.
 
 ## Product role
 
@@ -36,6 +36,11 @@ The maintained-fork foundation currently provides:
 - keyboard focus, practical target sizing, coarse-pointer support, reduced motion, reduced transparency, increased contrast, forced-colors handling, no-blur fallbacks, and print resilience;
 - no new remote UI dependency, analytics, tracker, advertising, or third-party-font requirement in the GoreeCloud-owned Glaze layer;
 - a fail-closed Glaze source conformance validator and dedicated GitHub Actions validation gate;
+- a GoreeCloud/Wardveil security policy and fail-closed source validator;
+- deterministic dependency/toolchain evidence retention in the GoreeCloud Security workflow;
+- hardened Electron renderer, IPC, certificate, and navigation boundaries;
+- a privacy-conscious observability/audit contract in [docs/goreecloud/OBSERVABILITY.md](docs/goreecloud/OBSERVABILITY.md);
+- a fail-closed production-readiness evidence contract in [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md);
 - an inherited end-to-end title/security assertion reconciled to the GoreeCloud Backup product identity while preserving HTML-escaping coverage.
 
 The current Glaze implementation and remaining visual acceptance gates are recorded in [docs/goreecloud/GLAZE_UI_CONFORMANCE.md](docs/goreecloud/GLAZE_UI_CONFORMANCE.md).
@@ -51,10 +56,50 @@ Current automated source conformance does **not** replace representative runtime
 - representative light and dark runtime review;
 - Compact, Medium, Expanded, and Wide runtime review;
 - keyboard, reduced-motion, reduced-transparency, increased-contrast, and forced-colors acceptance;
-- runtime review of loading, empty, warning, error, destructive, and recovery-oriented states;
-- a unique canonical GoreeCloud Backup application icon and derived favicon/launcher assets;
+- runtime review of loading, empty, warning, error, denied, destructive, and recovery-oriented states;
+- a unique canonical GoreeCloud Backup application icon and derived favicon/launcher/PWA/packaging assets;
 - removal or approved documentation of remaining production-visible upstream branding;
 - completion of the controlled frontend-source ownership transition where required for full presentation control.
+
+## Wardveil Security
+
+**Wardveil Security by GoreeCloud** is the platform-wide security and protection identity used by GoreeCloud Backup when presenting security posture, safeguards, security alerts, or protection controls.
+
+Wardveil does not replace the technical authority that produced a state. Repository encryption, authentication, authorization, integrity checks, vulnerability scanners, monitoring, policy, and restore evidence remain authoritative for their own subjects.
+
+The approved `Protected by Wardveil` phrase must be evidence-scoped. The application shell deliberately does not use it as a blanket claim merely because the source passes a security workflow. A scanner pass, healthy process, successful login, successful snapshot, or Glaze UI presentation is not proof of verified recovery.
+
+Wardveil-facing surfaces must use Glaze UI and preserve the originating component/control so security branding never hides technical authority.
+
+## Security, privacy, and observability
+
+Security policy is defined in [SECURITY.md](SECURITY.md). Operational and audit logging rules are defined in [docs/goreecloud/OBSERVABILITY.md](docs/goreecloud/OBSERVABILITY.md).
+
+The GoreeCloud-owned security gate currently includes:
+
+- `go mod verify`;
+- `govulncheck` reachable-vulnerability analysis;
+- production Electron dependency auditing;
+- source-secret/path checks and policy-drift validation;
+- Electron security-boundary checks;
+- Glaze/Wardveil shell privacy checks;
+- deterministic Go/Node/npm and dependency-input evidence retained through GitHub Actions.
+
+Routine logs must not contain passwords, backup passwords, access tokens, private keys, raw authorization/cookie values, protected file contents, or other reusable secret material. Authentication logging must also avoid echoing untrusted submitted credential identifiers merely for convenience.
+
+## Known release blockers
+
+The following items are explicitly unresolved and prevent Stable classification:
+
+- the inherited HTTP authentication path in `internal/server/server.go` still logs remote address and submitted username on failed login and may log remote address plus username on successful login when request logging is enabled;
+- the inherited short-term authentication cookie requires explicit review and regression evidence for `HttpOnly`, `Secure`, and an intentional `SameSite` policy;
+- GitHub Dependency Review cannot currently operate because Dependency Graph is disabled for this fork;
+- unique GoreeCloud Backup icon/favicon/launcher/PWA/packaging artwork remains required;
+- representative packaged desktop validation and Glaze runtime/visual/accessibility acceptance remain required;
+- planned GoreeCloud Manager, Monitor, Notify, API/CLI, and future Identity integrations remain governed implementation targets rather than completed claims;
+- target-environment repository, scheduling, retention, monitoring, notification, rollback, and representative restore acceptance remain required.
+
+These blockers are intentionally visible in source governance rather than being waived by branding, UI polish, or a partially green CI matrix.
 
 ## Upstream foundation
 
@@ -79,12 +124,13 @@ Changes in that boundary require explicit compatibility, failure, and restoratio
 GoreeCloud-owned development is expected to concentrate on:
 
 - product identity and Glaze UI;
+- Wardveil security/status presentation backed by actual control evidence;
 - protection-state evaluation;
 - repository and snapshot health presentation;
 - integrity and retention evidence;
 - guided restore and restore-testing workflows;
 - recovery-evidence recording;
-- diagnostics and operational readiness;
+- privacy-conscious observability and diagnostics;
 - controlled integration APIs and events;
 - packaging, release engineering, and long-term maintainability.
 
@@ -96,8 +142,9 @@ Integrations are intentionally service-specific rather than a shared-database de
 - **GoreeCloud Monitor** — independent availability and backup/verification health signals; Monitor must not become the backup authority.
 - **GoreeCloud Notify** — structured backup failure, degradation, verification, and recovery-related events with no secret-bearing payloads.
 - **GoreeCloud Identity** — future authentication/authorization integration only when its security model is appropriate for highly sensitive backup administration and a recovery-access path remains documented.
+- **GoreeCloud API/CLI** — explicit, least-privilege, documented contracts rather than direct coupling to recovery-critical internal storage.
 
-These integrations remain implementation targets unless explicitly identified elsewhere as completed. They must use governed interfaces rather than direct coupling to recovery-critical internal storage.
+These integrations remain implementation targets unless explicitly identified elsewhere as completed.
 
 ## Recovery safety boundary
 
@@ -105,22 +152,19 @@ Development in this repository must not be treated as authorization to modify, r
 
 A future production cutover requires separate target-environment acceptance, including representative restoration and recovery-evidence collection. Existing recovery points remain authoritative until a replacement has been proven.
 
-No Glaze UI, branding, build, or source-conformance success can substitute for restore validation.
+No Glaze UI, Wardveil Security presentation, vulnerability scan, branding, build, or source-conformance success can substitute for restore validation.
 
 ## Validation
 
-The repository retains inherited Kopia validation and adds a GoreeCloud-owned presentation gate.
+The repository retains inherited Kopia validation and adds GoreeCloud-owned UI and security gates.
 
-The GoreeCloud UI workflow currently performs:
-
-1. exact source checkout through SHA-pinned GitHub Actions;
-2. Go module verification;
-3. fail-closed Glaze UI source-contract validation;
-4. server-package tests for the presentation boundary.
+The GoreeCloud UI workflow validates canonical Glaze UI/source behavior and server presentation tests. The GoreeCloud Security workflow verifies module integrity, GoreeCloud/Wardveil security contracts, reachable Go vulnerabilities, production Electron dependencies, and deterministic security evidence.
 
 The broader inherited build, lint, test, coverage, compatibility, race-detector, HTML UI, licensing, and platform workflows remain important acceptance evidence and are not weakened merely to make a fork-specific change pass.
 
 Dependency Review is also intentionally retained. If GitHub repository configuration prevents it from running, that configuration issue remains a readiness item rather than a reason to remove the security gate.
+
+See [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md) for the complete evidence model.
 
 ## Building
 
