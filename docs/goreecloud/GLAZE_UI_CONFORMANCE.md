@@ -4,6 +4,7 @@
 
 Target design system: **Glaze UI 1.0**  
 Canonical source revision: `d6e446fd8ef251259d16368d50aad90d9287a774`  
+Security identity: **Wardveil Security by GoreeCloud**  
 Current implementation state: **Source conformance in active development; visual acceptance pending**
 
 This record defines the current GoreeCloud Backup presentation boundary and its stable-release gates. It does not authorize production replacement of an existing Kopia deployment or repository.
@@ -15,6 +16,16 @@ GoreeCloud Backup currently consumes a locally vendored snapshot of the canonica
 The intended surface hierarchy is **Canvas, Solid, Raised, Glaze, and Overlay**. The application canvas uses restrained GoreeCloud gradients. Readability-first content uses solid surfaces. Cards and data regions use raised surfaces. Navigation may use selective Glaze translucency. Dialogs, menus, popovers, and toasts use the strongest Overlay separation.
 
 The compatibility overlay is temporary. It is not a permanent substitute for owning and building the frontend source directly. The exit criteria and exact upstream frontend provenance remain recorded in `FRONTEND.md`.
+
+## Wardveil Security Presentation Contract
+
+Wardveil Security by GoreeCloud is the official platform-wide security and protection identity used when GoreeCloud Backup presents security posture, security controls, or protection assurance. Wardveil is a presentation and identity layer; it does not replace the underlying backup engine, repository security model, GoreeCloud policies, or technical authorities.
+
+GoreeCloud Backup may use the approved phrases **Wardveil Security**, **Wardveil**, and **Protected by Wardveil** where the interface is actually communicating security or protection posture. It must not invent unapproved Wardveil module names, and it must not imply that a successful snapshot, a green security scan, or Wardveil branding proves recoverability.
+
+Wardveil-facing surfaces must remain Glaze UI surfaces. They should communicate calm protection, trust, privacy, clarity, and control rather than stereotypical cybersecurity imagery. Security status must always preserve the identity of the underlying control or evidence source so the brand never obscures technical authority.
+
+For GoreeCloud Backup specifically, Wardveil presentation is appropriate for areas such as repository credential protection, vulnerability/update posture, desktop-shell hardening status, secret-handling safeguards, integrity/security findings, and security-related recovery readiness. Recovery state remains governed by GoreeCloud Backup's recovery evidence and restore-verification model.
 
 ## Component Coverage
 
@@ -73,6 +84,8 @@ The application name and browser metadata are GoreeCloud Backup. Required Kopia 
 
 A unique canonical GoreeCloud Backup application icon and derived favicon/launcher set are still required before visual completion under the GoreeCloud Application Branding and User Interface Design standard. The current inherited favicon and remaining upstream secondary branding therefore keep this candidate below visual-completion status.
 
+Wardveil Security must receive and retain its own distinguishable security identity rather than becoming the GoreeCloud Backup application icon. Backup identity, Glaze UI design identity, and Wardveil security identity are complementary but separate.
+
 ## Automated Conformance
 
 `scripts/validate_goreecloud_ui.py` is the fail-closed source validator for the current presentation boundary. It verifies:
@@ -86,7 +99,7 @@ A unique canonical GoreeCloud Backup application icon and derived favicon/launch
 - server integration and presentation tests;
 - this conformance record and its stable-release caveats.
 
-The GoreeCloud UI GitHub Actions workflow runs this validator in addition to module verification and server-package tests.
+The GoreeCloud UI GitHub Actions workflow runs this validator in addition to module verification and server-package tests. The GoreeCloud Security workflow separately enforces the Wardveil-facing security/source contract and security maintenance controls.
 
 ## Stable-Release Gate
 
@@ -100,6 +113,7 @@ Source conformance does not equal stable release. **Visual acceptance pending** 
 - increased-contrast and forced-colors behavior;
 - loading, empty, warning, error, and destructive states;
 - consistent product identity across primary and secondary screens;
+- correct Wardveil Security presentation wherever security posture is surfaced;
 - a unique GoreeCloud Backup icon, favicon, and supported launcher surfaces;
 - no material upstream-default presentation remaining on production-facing surfaces unless explicitly documented as an approved exception.
 
