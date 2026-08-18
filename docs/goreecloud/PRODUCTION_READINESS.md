@@ -53,6 +53,7 @@ The following source gates are required for a release candidate:
 - GoreeCloud Glaze UI source-conformance validation;
 - GoreeCloud/Wardveil security-source validation;
 - Dependency Review when GitHub Dependency Graph is available;
+- privacy-safe authentication logging and explicit authentication-cookie attribute tests;
 - no unresolved release-blocking vulnerability unless an approved, documented exception exists;
 - no known reusable secret in GoreeCloud-owned source changes;
 - no unreviewed repository-format, encryption, key-derivation, deduplication, content-addressing, retention-deletion, garbage-collection, or restore-semantics change.
