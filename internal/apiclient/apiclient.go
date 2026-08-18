@@ -101,11 +101,12 @@ func (c *KopiaAPIClient) FetchCSRFTokenForTesting(ctx context.Context) error {
 
 	// Secure cookies are intentionally withheld by a normal cookie jar on HTTP.
 	// A number of inherited unit tests intentionally use an HTTP httptest server,
-	// so retain the server-issued session cookie for that test-only compatibility
-	// path. HTTPS tests and all non-testing client use remain standards-compliant.
+	// so retain only the server-issued CSRF session cookie for that test-only
+	// compatibility path. HTTPS tests and all non-testing client use remain
+	// standards-compliant.
 	if req.URL.Scheme == "http" {
 		for _, cookie := range resp.Cookies() {
-			if cookie.Secure {
+			if cookie.Name == "Kopia-Session-Cookie" && cookie.Secure {
 				c.testingCSRFSessionCookie = cookie
 				break
 			}
@@ -170,6 +171,7 @@ func requestReader(reqPayload any) (io.Reader, string, error) {
 	}
 
 	var b bytes.Buffer
+
 	if err := json.NewEncoder(&b).Encode(reqPayload); err != nil {
 		return nil, "", errors.Wrap(err, "unable to serialize JSON")
 	}
