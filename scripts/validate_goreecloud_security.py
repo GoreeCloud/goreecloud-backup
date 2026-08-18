@@ -64,8 +64,9 @@ REQUIRED_SECURITY_TEXT = (
 
 REQUIRED_UI_PRIVACY_TEXT = (
     "analytics",
-    "trackers",
-    "remote font",
+    "tracking",
+    "third-party fonts",
+    "no remote ui dependencies",
 )
 
 
