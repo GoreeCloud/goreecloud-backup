@@ -30,12 +30,22 @@ func TestGoreeCloudAssetFileTransformsIndex(t *testing.T) {
 	html := string(data)
 
 	require.Contains(t, html, "<title>GoreeCloud Backup</title>")
+	require.Contains(t, html, `name="description" content="GoreeCloud Backup — private backup and restore management."`)
 	require.Contains(t, html, `name="application-name" content="GoreeCloud Backup"`)
+	require.Contains(t, html, `name="referrer" content="no-referrer"`)
+	require.Contains(t, html, `name="robots" content="noindex,nofollow,noarchive"`)
+	require.Contains(t, html, `name="color-scheme" content="light dark"`)
+	require.Contains(t, html, `name="goreecloud-security-identity" content="Wardveil Security by GoreeCloud"`)
 	require.Contains(t, html, `class="glaze-canvas goreecloud-backup"`)
+	require.Contains(t, html, `data-glaze-ui="1.0"`)
+	require.Contains(t, html, `data-security-identity="wardveil"`)
+	require.Contains(t, html, `<noscript>`)
+	require.Contains(t, html, `<strong>Wardveil Security:</strong>`)
 	require.Contains(t, html, `/goreecloud-ui/glaze.css`)
 	require.Contains(t, html, `/goreecloud-ui/glaze.accessibility.css`)
 	require.Contains(t, html, `/goreecloud-ui/backup.css`)
 	require.NotContains(t, html, "<title>KopiaUI</title>")
+	require.NotContains(t, html, "Protected by Wardveil")
 	require.Equal(t, 1, strings.Count(html, goreeCloudHeadMarker))
 }
 
