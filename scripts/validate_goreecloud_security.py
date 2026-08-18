@@ -65,6 +65,21 @@ REQUIRED_SHELL_SECURITY_TEXT = (
     'data-security-identity=\"wardveil\"',
     '<strong>Wardveil Security:</strong>',
 )
+REQUIRED_AUTH_SOURCE_TEXT = (
+    'Warnw("authentication denied", "event", "auth.failed"',
+    'Infow("authentication succeeded", "event", "auth.succeeded")',
+    "HttpOnly: true",
+    "Secure:   true",
+    "SameSite: http.SameSiteStrictMode",
+    "jwt.WithAudience(kopiaAuthCookieAudience)",
+    "jwt.WithIssuer(kopiaAuthCookieIssuer)",
+    "jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()})",
+)
+FORBIDDEN_AUTH_SOURCE_TEXT = (
+    "failed login attempt by client",
+    "successful login by client",
+    "rc.req.RemoteAddr, username",
+)
 REQUIRED_SECURITY_WORKFLOW_TEXT = (
     "Wardveil source security",
     "Record deterministic dependency evidence",
@@ -169,6 +184,21 @@ def validate_operational_contracts(failures: list[str]) -> None:
     validate_markers("docs/goreecloud/DEVELOPMENT.md", REQUIRED_DEVELOPMENT_TEXT, "Development contract", failures)
 
 
+def validate_authentication_security_contract(failures: list[str]) -> None:
+    source = (ROOT / "internal/server/server.go").read_text(encoding="utf-8")
+    for marker in REQUIRED_AUTH_SOURCE_TEXT:
+        if marker not in source:
+            failures.append(f"HTTP authentication boundary missing required hardening marker: {marker!r}")
+    for marker in FORBIDDEN_AUTH_SOURCE_TEXT:
+        if marker in source:
+            failures.append(f"HTTP authentication boundary contains privacy-sensitive legacy logging: {marker!r}")
+
+    test_source = (ROOT / "internal/server/server_goreecloud_security_test.go").read_text(encoding="utf-8")
+    for marker in ("TestGoreeCloudAuthenticationCookieSecurity", "TestGoreeCloudAuthenticationCookieRejectsWrongIssuerAndAudience", "TestGoreeCloudAuthenticationDeniesInvalidCredentials"):
+        if marker not in test_source:
+            failures.append(f"HTTP authentication hardening lacks required regression test: {marker}")
+
+
 def validate_shell_security_contract(failures: list[str]) -> None:
     shell = (ROOT / "internal/server/htmlui_goreecloud.go").read_text(encoding="utf-8")
     for marker in REQUIRED_SHELL_SECURITY_TEXT:
@@ -210,6 +240,7 @@ def main() -> int:
     validate_security_policy(failures)
     validate_ui_security_contract(failures)
     validate_operational_contracts(failures)
+    validate_authentication_security_contract(failures)
     validate_shell_security_contract(failures)
     validate_electron_security_contract(failures)
     validate_workflow_permissions(failures)
