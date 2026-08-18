@@ -73,12 +73,15 @@ REQUIRED_SECURITY_WORKFLOW_TEXT = (
 )
 REQUIRED_OBSERVABILITY_TEXT = (
     "Wardveil Security by GoreeCloud",
+    "Structured logging direction",
     "Failed-login logging must not echo the submitted username",
     "Current inherited-source blocker",
     "Representative restoration remains the authoritative recovery test",
+    "new GoreeCloud-owned events are structured consistently",
 )
 REQUIRED_READINESS_TEXT = (
     "not Stable and not approved for production replacement",
+    "Evidence freshness and exact-candidate rule",
     "Known source-level authentication/logging gap",
     "GitHub Dependency Graph is disabled",
     "representative file restore",
