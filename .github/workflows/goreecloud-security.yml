@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   source-security:
-    name: GoreeCloud source security
+    name: Wardveil source security
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -30,10 +30,21 @@ jobs:
           check-latest: false
           cache: true
 
+      - name: Record deterministic dependency evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p security-evidence
+          go version > security-evidence/go-toolchain.txt
+          go list -m all > security-evidence/go-modules.txt
+          node --version > security-evidence/node-version.txt
+          npm --version > security-evidence/npm-version.txt
+          sha256sum go.mod go.sum app/package.json app/package-lock.json > security-evidence/dependency-inputs.sha256
+
       - name: Verify module graph
         run: go mod verify
 
-      - name: Validate GoreeCloud security contract
+      - name: Validate Wardveil Security contract
         run: python3 scripts/validate_goreecloud_security.py
 
       - name: Check reachable Go vulnerabilities
@@ -44,3 +55,12 @@ jobs:
       - name: Audit production Electron dependencies
         working-directory: app
         run: npm audit --package-lock-only --omit=dev --audit-level=high
+
+      - name: Retain security evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wardveil-security-evidence-${{ github.run_id }}
+          path: security-evidence/
+          if-no-files-found: error
+          retention-days: 30
