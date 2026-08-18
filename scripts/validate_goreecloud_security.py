@@ -82,6 +82,7 @@ REQUIRED_OBSERVABILITY_TEXT = (
 REQUIRED_READINESS_TEXT = (
     "not Stable and not approved for production replacement",
     "Evidence freshness and exact-candidate rule",
+    "privacy-safe authentication logging and explicit authentication-cookie attribute tests",
     "Known source-level authentication/logging gap",
     "GitHub Dependency Graph is disabled",
     "representative file restore",
