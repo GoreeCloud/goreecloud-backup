@@ -84,6 +84,7 @@ REQUIRED_SECURITY_WORKFLOW_TEXT = (
     "Wardveil source security",
     "Record deterministic dependency evidence",
     "dependency-inputs.sha256",
+    "Test authentication privacy and cookie boundary",
     "Retain security evidence",
     "retention-days: 30",
 )
@@ -91,7 +92,7 @@ REQUIRED_OBSERVABILITY_TEXT = (
     "Wardveil Security by GoreeCloud",
     "Structured logging direction",
     "Failed-login logging must not echo the submitted username",
-    "Current inherited-source blocker",
+    "Source authentication-hardening checkpoint",
     "Representative restoration remains the authoritative recovery test",
     "new GoreeCloud-owned events are structured consistently",
 )
@@ -99,7 +100,7 @@ REQUIRED_READINESS_TEXT = (
     "not Stable and not approved for production replacement",
     "Evidence freshness and exact-candidate rule",
     "privacy-safe authentication logging and explicit authentication-cookie attribute tests",
-    "Known source-level authentication/logging gap",
+    "Source authentication-hardening checkpoint",
     "GitHub Dependency Graph is disabled",
     "representative file restore",
     "Wardveil Security by GoreeCloud",
