@@ -12,6 +12,14 @@ Operational and security telemetry must make failures diagnosable without turnin
 
 Logs and status records must never be treated as proof that protected data is recoverable. Representative restoration remains the authoritative recovery test.
 
+## Structured logging direction
+
+The production target is structured, machine-readable event logging for GoreeCloud-owned application, security, administrative, and integration events. The inherited Kopia logger may continue to emit legacy formatted lines during the maintained-fork transition; those inherited lines are not automatically classified as meeting the GoreeCloud structured-event contract.
+
+New GoreeCloud-owned event producers should prefer stable event names and typed or sanitized fields rather than concatenating untrusted values into prose. A later direct logging implementation may use JSON or another documented structured encoding, but this contract does not require a new runtime dependency merely to satisfy a format preference.
+
+A transition must not remove useful inherited diagnostic evidence before an equivalent or better privacy-safe event exists.
+
 ## Event categories
 
 The maintained application should expose or preserve enough structured context for the following event families where the underlying component supports them:
@@ -93,7 +101,7 @@ The same authentication path currently creates a short-term authentication cooki
 
 ## Error handling and retries
 
-Errors must be visible and actionable. Components should distinguish transient errors from permanent/configuration errors when doing so is reliable.
+Errors must be visible and actionable. Components should distinguish transient errors from permanent or configuration errors when doing so is reliable.
 
 Retries are appropriate only when:
 
@@ -101,7 +109,7 @@ Retries are appropriate only when:
 - retrying will not create destructive duplicate behavior;
 - retry attempts are bounded or use an explicit backoff policy;
 - persistent failure becomes visible rather than looping silently;
-- cancellation/shutdown can interrupt the retry path when appropriate.
+- cancellation or shutdown can interrupt the retry path when appropriate.
 
 User-facing failures must map to Glaze UI warning, degraded, denied-access, or error states instead of leaving controls indefinitely busy or silently ignoring the result.
 
@@ -134,7 +142,8 @@ Before Stable classification, representative validation must cover:
 9. Electron certificate/navigation/IPC rejection paths;
 10. update-check and update-failure paths;
 11. log access/retention configuration;
-12. verification that logs do not contain passwords, tokens, private keys, raw cookies, protected content, or other prohibited material.
+12. verification that logs do not contain passwords, tokens, private keys, raw cookies, protected content, or other prohibited material;
+13. verification that new GoreeCloud-owned events are structured consistently and do not regress to unreviewed free-form sensitive-value interpolation.
 
 ## Release boundary
 
