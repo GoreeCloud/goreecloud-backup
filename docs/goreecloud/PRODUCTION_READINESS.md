@@ -51,6 +51,7 @@ The following source gates are required for a release candidate:
 - build/package validation on supported platforms;
 - HTML UI tests;
 - GoreeCloud Glaze UI source-conformance validation;
+- GoreeCloud branding/icon integration validation;
 - GoreeCloud/Wardveil security-source validation;
 - Dependency Review when GitHub Dependency Graph is available;
 - privacy-safe authentication logging and explicit authentication-cookie attribute tests;
@@ -77,8 +78,26 @@ Stable visual/interaction acceptance requires representative runtime review of:
 - destructive confirmation and recovery-sensitive actions;
 - dialogs, menus, notifications, navigation, forms, tables, technical output, and settings;
 - Wardveil security status/alert presentation without overstating the underlying evidence;
-- unique GoreeCloud Backup application artwork across favicon, desktop/launcher, packaging, and other supported product surfaces;
+- unique GoreeCloud Backup application artwork across favicon, desktop/launcher, packaging, and every other supported product surface according to `docs/goreecloud/ICON_ASSETS.md`;
 - absence of material inherited upstream presentation that conflicts with the approved GoreeCloud product identity unless explicitly documented as a compatibility exception.
+
+### Canonical icon gate
+
+GoreeCloud Backup has an explicit cross-platform icon contract in `docs/goreecloud/ICON_ASSETS.md` and automated source validation in `scripts/validate_goreecloud_icon_assets.py`.
+
+The current checkpoint does **not** contain approved canonical artwork. Existing `app/assets/icon.icns`, `app/assets/icon.ico`, `app/public/favicon.ico`, `app/public/logo192.png`, and `app/public/logo512.png` remain inherited compatibility assets and are not accepted as the GoreeCloud Backup product identity.
+
+Stable/visual-completion approval requires:
+
+- approved `branding/goreecloud-backup-icon.svg` canonical source artwork;
+- required 16, 32, 48, 192, and 512 pixel web/PWA derivatives;
+- a maskable PWA representation where applicable;
+- explicit Linux/Electron/AppImage packaging artwork derived from the same identity;
+- Windows/macOS derivatives when those package targets are supported;
+- successful `python3 scripts/validate_goreecloud_icon_assets.py --release` on the exact candidate;
+- representative launcher/favicon visual acceptance at small and large sizes.
+
+There is no Android application source tree in the current repository checkpoint. An APK icon is therefore not claimed implemented. If an Android client is added, adaptive, legacy-density, round, themed/monochrome, and notification assets must derive from the same canonical GoreeCloud Backup identity before that APK/AAB target can pass its release gate.
 
 ## Authentication, authorization, and privacy gates
 
