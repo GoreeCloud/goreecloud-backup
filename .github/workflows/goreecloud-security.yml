@@ -1,0 +1,46 @@
+name: GoreeCloud Security
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master, 'agent/**' ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-security:
+    name: GoreeCloud source security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: true
+
+      - name: Verify module graph
+        run: go mod verify
+
+      - name: Validate GoreeCloud security contract
+        run: python3 scripts/validate_goreecloud_security.py
+
+      - name: Check reachable Go vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+          govulncheck ./...
+
+      - name: Audit production Electron dependencies
+        working-directory: app
+        run: npm audit --package-lock-only --omit=dev --audit-level=high
