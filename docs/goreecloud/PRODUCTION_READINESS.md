@@ -4,7 +4,7 @@
 
 **Active development — not Stable and not approved for production replacement of an existing Kopia deployment.**
 
-This record separates source-level evidence from target-environment acceptance. It is intentionally fail-closed: an unknown, unavailable, skipped, or unverified required gate is not equivalent to a pass.
+This record separates source-level evidence from target-environment acceptance. It is intentionally fail-closed: an unknown, unavailable, skipped, stale, cancelled by a newer head, or unverified required gate is not equivalent to a pass.
 
 ## Governing principle
 
@@ -16,6 +16,22 @@ Stable classification requires both:
 2. target-environment evidence showing that the actual deployment can back up, retain, monitor, notify, and restore representative protected information safely.
 
 Wardveil Security by GoreeCloud presents security/protection posture. It does not replace the technical evidence below and must not turn an incomplete gate set into a generalized protection claim.
+
+## Evidence freshness and exact-candidate rule
+
+Release evidence belongs to the exact candidate commit that produced it. A passing workflow on an older commit is useful historical evidence but does not automatically validate a newer source head.
+
+When a newer commit supersedes a running workflow, cancellation is not a source failure, but the cancelled run is also not a passing result for the newer candidate. Documentation-only changes still require the source/governance gates whose path filters cover those files.
+
+The release record must distinguish:
+
+- **passed** — the required gate evaluated the exact candidate and succeeded;
+- **failed** — the exact-candidate gate evaluated and reported a blocking result;
+- **blocked/unavailable** — infrastructure, repository configuration, permissions, or another external condition prevented evaluation;
+- **pending** — evaluation has started or is queued but has not completed;
+- **not applicable** — the requirement is genuinely outside the candidate's supported scope and the reason is documented.
+
+`Not applicable` must not be used as a shortcut for difficult, unavailable, or inconvenient validation.
 
 ## Source and repository gates
 
