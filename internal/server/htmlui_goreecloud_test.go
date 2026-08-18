@@ -36,6 +36,8 @@ func TestGoreeCloudAssetFileTransformsIndex(t *testing.T) {
 	require.Contains(t, html, `name="robots" content="noindex,nofollow,noarchive"`)
 	require.Contains(t, html, `name="color-scheme" content="light dark"`)
 	require.Contains(t, html, `name="goreecloud-security-identity" content="Wardveil Security by GoreeCloud"`)
+	require.Contains(t, html, `http-equiv="Content-Security-Policy"`)
+	require.Contains(t, html, goreeCloudCSP)
 	require.Contains(t, html, `class="glaze-canvas goreecloud-backup"`)
 	require.Contains(t, html, `data-glaze-ui="1.0"`)
 	require.Contains(t, html, `data-security-identity="wardveil"`)
@@ -89,6 +91,7 @@ func TestApplyGoreeCloudHTMLIdentityIsIdempotent(t *testing.T) {
 
 	require.Equal(t, string(once), string(twice))
 	require.Equal(t, 1, strings.Count(string(twice), goreeCloudHeadMarker))
+	require.Equal(t, 1, strings.Count(string(twice), `http-equiv="Content-Security-Policy"`))
 }
 
 func TestGoreeCloudAssetFilePreservesMissingAssetError(t *testing.T) {
