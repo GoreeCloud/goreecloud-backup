@@ -82,18 +82,22 @@ func applyGoreeCloudHTMLIdentity(contents []byte) []byte {
 	html = strings.Replace(
 		html,
 		`<meta name="description" content="Kopia UI" />`,
-		`<meta name="description" content="GoreeCloud Backup — private, encrypted, recoverable backup and restore." />`,
+		`<meta name="description" content="GoreeCloud Backup — private backup and restore management." />`,
 		1,
 	)
 	html = strings.Replace(
 		html,
 		`<body id="kopia">`,
-		`<body id="kopia" class="glaze-canvas goreecloud-backup">`,
+		`<body id="kopia" class="glaze-canvas goreecloud-backup" data-glaze-ui="1.0" data-security-identity="wardveil">`,
 		1,
 	)
 
 	head := goreeCloudHeadMarker + `
     <meta name="application-name" content="GoreeCloud Backup" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="goreecloud-security-identity" content="Wardveil Security by GoreeCloud" />
     <meta name="theme-color" content="#172033" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0d1119" media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="/goreecloud-ui/glaze.css" />
@@ -101,6 +105,9 @@ func applyGoreeCloudHTMLIdentity(contents []byte) []byte {
     <link rel="stylesheet" href="/goreecloud-ui/backup.css" />`
 
 	html = strings.Replace(html, "</head>", head+"\n  </head>", 1)
+
+	noscript := `<noscript><div class="alert alert-danger m-3" role="alert"><strong>Wardveil Security:</strong> GoreeCloud Backup requires JavaScript for its local administrative interface. Enable JavaScript and reload this page.</div></noscript>`
+	html = strings.Replace(html, `data-security-identity="wardveil">`, `data-security-identity="wardveil">`+noscript, 1)
 
 	return []byte(html)
 }
