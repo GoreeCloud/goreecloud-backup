@@ -3,7 +3,8 @@
 
 This validator intentionally focuses on GoreeCloud-owned changes instead of trying to
 reinterpret the complete inherited Kopia history. It prevents new reusable-secret
-material and required security-governance drift from entering the maintained fork.
+material and required security-governance drift from entering the maintained fork and
+keeps the Wardveil Security presentation contract attached to the actual controls.
 """
 
 from __future__ import annotations
@@ -24,16 +25,8 @@ SENSITIVE_PATH_PATTERNS = (
     re.compile(r"(^|/)(credentials|token)\.json$", re.IGNORECASE),
 )
 
-ALLOWED_SENSITIVE_PATHS = {
-    ".env.example",
-    ".env.template",
-}
-
-# This validator contains the detection signatures themselves, so it is excluded
-# from content scanning while still being covered by ordinary source review/CI.
-CONTENT_SCAN_EXCLUSIONS = {
-    "scripts/validate_goreecloud_security.py",
-}
+ALLOWED_SENSITIVE_PATHS = {".env.example", ".env.template"}
+CONTENT_SCAN_EXCLUSIONS = {"scripts/validate_goreecloud_security.py"}
 
 HIGH_CONFIDENCE_SECRET_PATTERNS = (
     ("private key block", re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----")),
@@ -44,52 +37,29 @@ HIGH_CONFIDENCE_SECRET_PATTERNS = (
 )
 
 REQUIRED_GITIGNORE_LINES = {
-    ".env",
-    ".env.*",
-    "!.env.example",
-    "!.env.template",
-    "secrets/",
-    "*.key",
-    "*.pem",
-    "credentials.json",
-    "token.json",
+    ".env", ".env.*", "!.env.example", "!.env.template", "secrets/", "*.key", "*.pem",
+    "credentials.json", "token.json",
 }
-
 REQUIRED_SECURITY_TEXT = (
-    "Reusable secrets must not be committed",
-    "govulncheck",
-    "go mod verify",
+    "Reusable secrets must not be committed", "govulncheck", "go mod verify",
     "target-environment backup and representative restore evidence",
 )
-
-REQUIRED_UI_PRIVACY_TEXT = (
-    "analytics",
-    "tracking",
-    "third-party fonts",
-    "no remote ui dependencies",
+REQUIRED_UI_PRIVACY_TEXT = ("analytics", "tracking", "third-party fonts", "no remote ui dependencies")
+REQUIRED_WARDVEIL_TEXT = (
+    "wardveil security by goreecloud",
+    "wardveil security presentation contract",
+    "protected by wardveil",
+    "does not replace the underlying backup engine",
+    "must not imply that a successful snapshot",
 )
-
 REQUIRED_ELECTRON_SECURITY_TEXT = (
-    "contextIsolation: true",
-    "nodeIntegration: false",
-    "sandbox: true",
-    "webSecurity: true",
-    "repositoryIDForSender",
-    "requireTrustedRepositorySender",
-    "setWindowOpenHandler",
-    'callback(false)',
+    "contextIsolation: true", "nodeIntegration: false", "sandbox: true", "webSecurity: true",
+    "repositoryIDForSender", "requireTrustedRepositorySender", "setWindowOpenHandler", 'callback(false)',
 )
 
 
 def run_git(*args: str) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=ROOT,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    result = subprocess.run(["git", *args], cwd=ROOT, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.stdout
 
 
@@ -99,15 +69,11 @@ def changed_files() -> list[str]:
     except subprocess.CalledProcessError as exc:
         print(f"security validation could not compare against {BASE_REF}: {exc.stderr.strip()}", file=sys.stderr)
         raise
-
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
 def is_sensitive_path(path: str) -> bool:
-    if path in ALLOWED_SENSITIVE_PATHS:
-        return False
-
-    return any(pattern.search(path) for pattern in SENSITIVE_PATH_PATTERNS)
+    return path not in ALLOWED_SENSITIVE_PATHS and any(pattern.search(path) for pattern in SENSITIVE_PATH_PATTERNS)
 
 
 def validate_paths(paths: list[str], failures: list[str]) -> None:
@@ -120,27 +86,20 @@ def validate_content(paths: list[str], failures: list[str]) -> None:
     for path in paths:
         if path in CONTENT_SCAN_EXCLUSIONS:
             continue
-
         candidate = ROOT / path
         if not candidate.is_file():
             continue
-
         try:
             text = candidate.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-
         for label, pattern in HIGH_CONFIDENCE_SECRET_PATTERNS:
             if pattern.search(text):
                 failures.append(f"possible {label} in changed file: {path}")
 
 
 def validate_gitignore(failures: list[str]) -> None:
-    lines = {
-        line.strip()
-        for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    }
+    lines = {line.strip() for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")}
     missing = sorted(REQUIRED_GITIGNORE_LINES - lines)
     if missing:
         failures.append(".gitignore is missing GoreeCloud secret exclusions: " + ", ".join(missing))
@@ -153,11 +112,14 @@ def validate_security_policy(failures: list[str]) -> None:
             failures.append(f"SECURITY.md missing required contract marker: {marker!r}")
 
 
-def validate_ui_privacy_contract(failures: list[str]) -> None:
+def validate_ui_security_contract(failures: list[str]) -> None:
     conformance = (ROOT / "docs/goreecloud/GLAZE_UI_CONFORMANCE.md").read_text(encoding="utf-8").lower()
     for marker in REQUIRED_UI_PRIVACY_TEXT:
         if marker not in conformance:
             failures.append(f"Glaze UI conformance record missing privacy marker: {marker!r}")
+    for marker in REQUIRED_WARDVEIL_TEXT:
+        if marker not in conformance:
+            failures.append(f"Glaze UI conformance record missing Wardveil contract marker: {marker!r}")
 
 
 def validate_electron_security_contract(failures: list[str]) -> None:
@@ -165,7 +127,6 @@ def validate_electron_security_contract(failures: list[str]) -> None:
     for marker in REQUIRED_ELECTRON_SECURITY_TEXT:
         if marker not in electron:
             failures.append(f"Electron shell missing required security marker: {marker!r}")
-
     if 'app.name = "GoreeCloud Backup"' not in electron:
         failures.append("Electron shell must expose the GoreeCloud Backup product identity")
 
@@ -180,22 +141,19 @@ def validate_workflow_permissions(failures: list[str]) -> None:
 def main() -> int:
     failures: list[str] = []
     paths = changed_files()
-
     validate_paths(paths, failures)
     validate_content(paths, failures)
     validate_gitignore(failures)
     validate_security_policy(failures)
-    validate_ui_privacy_contract(failures)
+    validate_ui_security_contract(failures)
     validate_electron_security_contract(failures)
     validate_workflow_permissions(failures)
-
     if failures:
         print("GoreeCloud security validation failed:", file=sys.stderr)
         for failure in failures:
             print(f"- {failure}", file=sys.stderr)
         return 1
-
-    print(f"GoreeCloud security validation passed for {len(paths)} changed files.")
+    print(f"GoreeCloud security validation passed for {len(paths)} changed files with Wardveil Security contract enforced.")
     return 0
 
 
