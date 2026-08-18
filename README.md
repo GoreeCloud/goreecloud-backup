@@ -39,8 +39,8 @@ The maintained-fork foundation currently provides:
 - a GoreeCloud/Wardveil security policy and fail-closed source validator;
 - deterministic dependency/toolchain evidence retention in the GoreeCloud Security workflow;
 - hardened Electron renderer, IPC, certificate, and navigation boundaries;
-- a privacy-conscious observability/audit contract in [docs/goreecloud/OBSERVABILITY.md](docs/goreecloud/OBSERVABILITY.md);
-- a fail-closed production-readiness evidence contract in [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md);
+- a privacy-conscious structured-observability transition contract in [docs/goreecloud/OBSERVABILITY.md](docs/goreecloud/OBSERVABILITY.md);
+- a fail-closed exact-candidate production-readiness evidence contract in [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md);
 - an inherited end-to-end title/security assertion reconciled to the GoreeCloud Backup product identity while preserving HTML-escaping coverage.
 
 The current Glaze implementation and remaining visual acceptance gates are recorded in [docs/goreecloud/GLAZE_UI_CONFORMANCE.md](docs/goreecloud/GLAZE_UI_CONFORMANCE.md).
@@ -56,7 +56,7 @@ Current automated source conformance does **not** replace representative runtime
 - representative light and dark runtime review;
 - Compact, Medium, Expanded, and Wide runtime review;
 - keyboard, reduced-motion, reduced-transparency, increased-contrast, and forced-colors acceptance;
-- runtime review of loading, empty, warning, error, denied, destructive, and recovery-oriented states;
+- runtime review of loading, empty, warning, degraded, denied-access, error, destructive, and recovery-oriented states;
 - a unique canonical GoreeCloud Backup application icon and derived favicon/launcher/PWA/packaging assets;
 - removal or approved documentation of remaining production-visible upstream branding;
 - completion of the controlled frontend-source ownership transition where required for full presentation control.
@@ -74,6 +74,8 @@ Wardveil-facing surfaces must use Glaze UI and preserve the originating componen
 ## Security, privacy, and observability
 
 Security policy is defined in [SECURITY.md](SECURITY.md). Operational and audit logging rules are defined in [docs/goreecloud/OBSERVABILITY.md](docs/goreecloud/OBSERVABILITY.md).
+
+The production observability target is structured, machine-readable GoreeCloud-owned events with stable event names and sanitized fields. Inherited Kopia free-form diagnostic logging may remain temporarily during the maintained-fork transition, but it is not automatically considered compliant with the GoreeCloud structured-event contract.
 
 The GoreeCloud-owned security gate currently includes:
 
@@ -163,6 +165,8 @@ The GoreeCloud UI workflow validates canonical Glaze UI/source behavior and serv
 The broader inherited build, lint, test, coverage, compatibility, race-detector, HTML UI, licensing, and platform workflows remain important acceptance evidence and are not weakened merely to make a fork-specific change pass.
 
 Dependency Review is also intentionally retained. If GitHub repository configuration prevents it from running, that configuration issue remains a readiness item rather than a reason to remove the security gate.
+
+Release evidence is exact-candidate evidence. A passing workflow on an older head does not automatically validate a newer head, and a cancelled superseded workflow is neither a source failure nor a passing result for the replacement candidate.
 
 See [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md) for the complete evidence model.
 
