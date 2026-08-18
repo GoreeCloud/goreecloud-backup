@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/kopia/kopia/internal/auth"
+	"github.com/kopia/kopia/internal/clock"
 )
 
 func TestGoreeCloudAuthenticationCookieSecurity(t *testing.T) {
@@ -21,19 +21,23 @@ func TestGoreeCloudAuthenticationCookieSecurity(t *testing.T) {
 	s := &Server{
 		authenticator:        auth.AuthenticateSingleUser(username, password),
 		authCookieSigningKey: []byte("goreecloud-auth-cookie-test-signing-key"),
-		options:               Options{LogRequests: true},
+		options: Options{
+			LogRequests: true,
+		},
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "https://backup.goreecloud.test/api/v1/repo/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://backup.goreecloud.test/api/v1/repo/status", http.NoBody)
 	req.SetBasicAuth(username, password)
-	rr := httptest.NewRecorder()
 
+	rr := httptest.NewRecorder()
 	require.True(t, s.isAuthenticated(requestContext{w: rr, req: req, srv: s}))
 
 	var authCookie *http.Cookie
+
 	for _, cookie := range rr.Result().Cookies() {
 		if cookie.Name == kopiaAuthCookie {
 			authCookie = cookie
+
 			break
 		}
 	}
@@ -50,19 +54,21 @@ func TestGoreeCloudAuthenticationCookieSecurity(t *testing.T) {
 
 func TestGoreeCloudAuthenticationCookieRejectsWrongIssuerAndAudience(t *testing.T) {
 	s := &Server{authCookieSigningKey: []byte("goreecloud-auth-cookie-test-signing-key")}
-	now := time.Now()
+	now := clock.Now()
 
 	makeToken := func(issuer string, audience jwt.ClaimStrings) string {
 		t.Helper()
+
 		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, &jwt.RegisteredClaims{
 			Subject:   "goreecloud-admin",
-			NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)),
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute)),
+			NotBefore: jwt.NewNumericDate(now.Add(-kopiaAuthCookieTTL)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(kopiaAuthCookieTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			Audience:  audience,
 			Issuer:    issuer,
 		}).SignedString(s.authCookieSigningKey)
 		require.NoError(t, err)
+
 		return token
 	}
 
@@ -76,10 +82,10 @@ func TestGoreeCloudAuthenticationDeniesInvalidCredentials(t *testing.T) {
 		authCookieSigningKey: []byte("goreecloud-auth-cookie-test-signing-key"),
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "https://backup.goreecloud.test/api/v1/repo/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://backup.goreecloud.test/api/v1/repo/status", http.NoBody)
 	req.SetBasicAuth("submitted-user-must-not-be-logged", "wrong-password")
-	rr := httptest.NewRecorder()
 
+	rr := httptest.NewRecorder()
 	require.False(t, s.isAuthenticated(requestContext{w: rr, req: req, srv: s}))
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
 	require.Equal(t, `Basic realm="Kopia"`, rr.Header().Get("WWW-Authenticate"))
