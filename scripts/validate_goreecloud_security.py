@@ -58,11 +58,11 @@ REQUIRED_ELECTRON_SECURITY_TEXT = (
     "repositoryIDForSender", "requireTrustedRepositorySender", "setWindowOpenHandler", 'callback(false)',
 )
 REQUIRED_SHELL_SECURITY_TEXT = (
-    'name=\"referrer\" content=\"no-referrer\"',
-    'name=\"robots\" content=\"noindex,nofollow,noarchive\"',
-    'name=\"goreecloud-security-identity\" content=\"Wardveil Security by GoreeCloud\"',
-    'data-glaze-ui=\"1.0\"',
-    'data-security-identity=\"wardveil\"',
+    'name="referrer" content="no-referrer"',
+    'name="robots" content="noindex,nofollow,noarchive"',
+    'name="goreecloud-security-identity" content="Wardveil Security by GoreeCloud"',
+    'data-glaze-ui="1.0"',
+    'data-security-identity="wardveil"',
     '<strong>Wardveil Security:</strong>',
 )
 REQUIRED_AUTH_SOURCE_TEXT = (
@@ -79,6 +79,15 @@ FORBIDDEN_AUTH_SOURCE_TEXT = (
     "failed login attempt by client",
     "successful login by client",
     "rc.req.RemoteAddr, username",
+)
+REQUIRED_REQUEST_INTEGRITY_SOURCE_TEXT = (
+    'Warnw("request integrity denied", "event", "request.csrf.denied", "path", r.URL.Path)',
+    'Debugf("request %v (%v bytes)", rc.req.URL.Path, len(body))',
+    'Debugf("%v: error code %v message %v", rc.req.URL.Path, err.apiErrorCode, err.message)',
+)
+FORBIDDEN_REQUEST_LOG_SOURCE_TEXT = (
+    'Debugf("request %v (%v bytes)", rc.req.URL, len(body))',
+    'Debugf("%v: error code %v message %v", rc.req.URL, err.apiErrorCode, err.message)',
 )
 REQUIRED_SECURITY_WORKFLOW_TEXT = (
     "Wardveil source security",
@@ -200,6 +209,16 @@ def validate_authentication_security_contract(failures: list[str]) -> None:
             failures.append(f"HTTP authentication hardening lacks required regression test: {marker}")
 
 
+def validate_request_integrity_contract(failures: list[str]) -> None:
+    source = (ROOT / "internal/server/server.go").read_text(encoding="utf-8")
+    for marker in REQUIRED_REQUEST_INTEGRITY_SOURCE_TEXT:
+        if marker not in source:
+            failures.append(f"HTTP request-integrity boundary missing privacy/security marker: {marker!r}")
+    for marker in FORBIDDEN_REQUEST_LOG_SOURCE_TEXT:
+        if marker in source:
+            failures.append(f"HTTP request logging may expose raw query strings: {marker!r}")
+
+
 def validate_shell_security_contract(failures: list[str]) -> None:
     shell = (ROOT / "internal/server/htmlui_goreecloud.go").read_text(encoding="utf-8")
     for marker in REQUIRED_SHELL_SECURITY_TEXT:
@@ -242,6 +261,7 @@ def main() -> int:
     validate_ui_security_contract(failures)
     validate_operational_contracts(failures)
     validate_authentication_security_contract(failures)
+    validate_request_integrity_contract(failures)
     validate_shell_security_contract(failures)
     validate_electron_security_contract(failures)
     validate_workflow_permissions(failures)
