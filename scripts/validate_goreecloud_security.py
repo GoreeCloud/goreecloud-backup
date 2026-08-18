@@ -69,6 +69,17 @@ REQUIRED_UI_PRIVACY_TEXT = (
     "no remote ui dependencies",
 )
 
+REQUIRED_ELECTRON_SECURITY_TEXT = (
+    "contextIsolation: true",
+    "nodeIntegration: false",
+    "sandbox: true",
+    "webSecurity: true",
+    "repositoryIDForSender",
+    "requireTrustedRepositorySender",
+    "setWindowOpenHandler",
+    'callback(false)',
+)
+
 
 def run_git(*args: str) -> str:
     result = subprocess.run(
@@ -149,6 +160,16 @@ def validate_ui_privacy_contract(failures: list[str]) -> None:
             failures.append(f"Glaze UI conformance record missing privacy marker: {marker!r}")
 
 
+def validate_electron_security_contract(failures: list[str]) -> None:
+    electron = (ROOT / "app/public/electron.js").read_text(encoding="utf-8")
+    for marker in REQUIRED_ELECTRON_SECURITY_TEXT:
+        if marker not in electron:
+            failures.append(f"Electron shell missing required security marker: {marker!r}")
+
+    if 'app.name = "GoreeCloud Backup"' not in electron:
+        failures.append("Electron shell must expose the GoreeCloud Backup product identity")
+
+
 def validate_workflow_permissions(failures: list[str]) -> None:
     for relative in (".github/workflows/goreecloud-ui.yml", ".github/workflows/goreecloud-security.yml"):
         text = (ROOT / relative).read_text(encoding="utf-8")
@@ -165,6 +186,7 @@ def main() -> int:
     validate_gitignore(failures)
     validate_security_policy(failures)
     validate_ui_privacy_contract(failures)
+    validate_electron_security_contract(failures)
     validate_workflow_permissions(failures)
 
     if failures:
