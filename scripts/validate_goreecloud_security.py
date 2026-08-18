@@ -89,6 +89,13 @@ REQUIRED_READINESS_TEXT = (
     "representative file restore",
     "Wardveil Security by GoreeCloud",
 )
+REQUIRED_DEVELOPMENT_TEXT = (
+    "Known source blockers",
+    "Dependency Review cannot operate until GitHub Dependency Graph is enabled",
+    "Release evidence must correspond to the exact candidate commit",
+    "Wardveil Security by GoreeCloud",
+    "docs/goreecloud/OBSERVABILITY.md",
+)
 
 
 def run_git(*args: str) -> str:
@@ -131,6 +138,15 @@ def validate_content(paths: list[str], failures: list[str]) -> None:
                 failures.append(f"possible {label} in changed file: {path}")
 
 
+def validate_markers(path: str, markers: tuple[str, ...], label: str, failures: list[str], *, lowercase: bool = False) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8")
+    if lowercase:
+        text = text.lower()
+    for marker in markers:
+        if marker not in text:
+            failures.append(f"{label} missing required marker: {marker!r}")
+
+
 def validate_gitignore(failures: list[str]) -> None:
     lines = {line.strip() for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")}
     missing = sorted(REQUIRED_GITIGNORE_LINES - lines)
@@ -139,32 +155,18 @@ def validate_gitignore(failures: list[str]) -> None:
 
 
 def validate_security_policy(failures: list[str]) -> None:
-    security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
-    for marker in REQUIRED_SECURITY_TEXT:
-        if marker not in security:
-            failures.append(f"SECURITY.md missing required contract marker: {marker!r}")
+    validate_markers("SECURITY.md", REQUIRED_SECURITY_TEXT, "SECURITY.md", failures)
 
 
 def validate_ui_security_contract(failures: list[str]) -> None:
-    conformance = (ROOT / "docs/goreecloud/GLAZE_UI_CONFORMANCE.md").read_text(encoding="utf-8").lower()
-    for marker in REQUIRED_UI_PRIVACY_TEXT:
-        if marker not in conformance:
-            failures.append(f"Glaze UI conformance record missing privacy marker: {marker!r}")
-    for marker in REQUIRED_WARDVEIL_TEXT:
-        if marker not in conformance:
-            failures.append(f"Glaze UI conformance record missing Wardveil contract marker: {marker!r}")
+    validate_markers("docs/goreecloud/GLAZE_UI_CONFORMANCE.md", REQUIRED_UI_PRIVACY_TEXT, "Glaze UI conformance record", failures, lowercase=True)
+    validate_markers("docs/goreecloud/GLAZE_UI_CONFORMANCE.md", REQUIRED_WARDVEIL_TEXT, "Glaze UI Wardveil contract", failures, lowercase=True)
 
 
 def validate_operational_contracts(failures: list[str]) -> None:
-    observability = (ROOT / "docs/goreecloud/OBSERVABILITY.md").read_text(encoding="utf-8")
-    for marker in REQUIRED_OBSERVABILITY_TEXT:
-        if marker not in observability:
-            failures.append(f"Observability contract missing required marker: {marker!r}")
-
-    readiness = (ROOT / "docs/goreecloud/PRODUCTION_READINESS.md").read_text(encoding="utf-8")
-    for marker in REQUIRED_READINESS_TEXT:
-        if marker not in readiness:
-            failures.append(f"Production-readiness contract missing required marker: {marker!r}")
+    validate_markers("docs/goreecloud/OBSERVABILITY.md", REQUIRED_OBSERVABILITY_TEXT, "Observability contract", failures)
+    validate_markers("docs/goreecloud/PRODUCTION_READINESS.md", REQUIRED_READINESS_TEXT, "Production-readiness contract", failures)
+    validate_markers("docs/goreecloud/DEVELOPMENT.md", REQUIRED_DEVELOPMENT_TEXT, "Development contract", failures)
 
 
 def validate_shell_security_contract(failures: list[str]) -> None:
