@@ -15,7 +15,7 @@ import (
 
 const (
 	goreeCloudUIAssetPrefix = "goreecloud-ui/"
-	goreeCloudHeadMarker     = "<!-- goreecloud-backup-ui -->"
+	goreeCloudHeadMarker    = "<!-- goreecloud-backup-ui -->"
 )
 
 //go:embed goreecloud-ui/*
