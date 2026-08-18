@@ -56,6 +56,21 @@ REQUIRED_ELECTRON_SECURITY_TEXT = (
     "contextIsolation: true", "nodeIntegration: false", "sandbox: true", "webSecurity: true",
     "repositoryIDForSender", "requireTrustedRepositorySender", "setWindowOpenHandler", 'callback(false)',
 )
+REQUIRED_SHELL_SECURITY_TEXT = (
+    'name=\"referrer\" content=\"no-referrer\"',
+    'name=\"robots\" content=\"noindex,nofollow,noarchive\"',
+    'name=\"goreecloud-security-identity\" content=\"Wardveil Security by GoreeCloud\"',
+    'data-glaze-ui=\"1.0\"',
+    'data-security-identity=\"wardveil\"',
+    '<strong>Wardveil Security:</strong>',
+)
+REQUIRED_SECURITY_WORKFLOW_TEXT = (
+    "Wardveil source security",
+    "Record deterministic dependency evidence",
+    "dependency-inputs.sha256",
+    "Retain security evidence",
+    "retention-days: 30",
+)
 
 
 def run_git(*args: str) -> str:
@@ -122,6 +137,17 @@ def validate_ui_security_contract(failures: list[str]) -> None:
             failures.append(f"Glaze UI conformance record missing Wardveil contract marker: {marker!r}")
 
 
+def validate_shell_security_contract(failures: list[str]) -> None:
+    shell = (ROOT / "internal/server/htmlui_goreecloud.go").read_text(encoding="utf-8")
+    for marker in REQUIRED_SHELL_SECURITY_TEXT:
+        if marker not in shell:
+            failures.append(f"GoreeCloud shell missing security/privacy marker: {marker!r}")
+    if "Protected by Wardveil" in shell:
+        failures.append("GoreeCloud shell must not claim 'Protected by Wardveil' without authoritative dynamic protection evidence")
+    if "recoverable backup and restore" in shell.lower():
+        failures.append("GoreeCloud shell must not claim recoverability before restore acceptance proves it")
+
+
 def validate_electron_security_contract(failures: list[str]) -> None:
     electron = (ROOT / "app/public/electron.js").read_text(encoding="utf-8")
     for marker in REQUIRED_ELECTRON_SECURITY_TEXT:
@@ -137,6 +163,11 @@ def validate_workflow_permissions(failures: list[str]) -> None:
         if "permissions:\n  contents: read" not in text:
             failures.append(f"{relative} must default to read-only repository contents")
 
+    security_workflow = (ROOT / ".github/workflows/goreecloud-security.yml").read_text(encoding="utf-8")
+    for marker in REQUIRED_SECURITY_WORKFLOW_TEXT:
+        if marker not in security_workflow:
+            failures.append(f"GoreeCloud Security workflow missing evidence marker: {marker!r}")
+
 
 def main() -> int:
     failures: list[str] = []
@@ -146,6 +177,7 @@ def main() -> int:
     validate_gitignore(failures)
     validate_security_policy(failures)
     validate_ui_security_contract(failures)
+    validate_shell_security_contract(failures)
     validate_electron_security_contract(failures)
     validate_workflow_permissions(failures)
     if failures:
