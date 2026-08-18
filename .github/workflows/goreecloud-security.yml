@@ -48,7 +48,7 @@ jobs:
         run: python3 scripts/validate_goreecloud_security.py
 
       - name: Test authentication privacy and cookie boundary
-        run: go test ./internal/server/... -run '^TestGoreeCloudAuthentication' -count=1
+        run: go test ./internal/server/... -run '^TestGoreeCloud' -count=1
 
       - name: Check reachable Go vulnerabilities
         run: |
