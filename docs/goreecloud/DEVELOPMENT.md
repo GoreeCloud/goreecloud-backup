@@ -111,7 +111,7 @@ Integration work should:
 - define authentication, authorization, timeout, retry, failure, compatibility, and privacy behavior;
 - expose only the data needed by the consumer;
 - preserve the source system as technical authority;
-- include synthetic/disposable integration tests before target acceptance.
+- include synthetic or disposable integration tests before target acceptance.
 
 ## Known source blockers
 
@@ -125,7 +125,7 @@ These blockers must remain visible in `SECURITY.md`, `docs/goreecloud/OBSERVABIL
 
 ## Pull-request acceptance
 
-A GoreeCloud Backup pull request should remain draft while material source/release blockers are unresolved or exact-head validation is incomplete.
+A GoreeCloud Backup pull request should remain draft while material source or release blockers are unresolved or exact-head validation is incomplete.
 
 Applicable acceptance evidence includes:
 
@@ -141,7 +141,7 @@ Applicable acceptance evidence includes:
 - explicit documentation of any remaining target/manual gate;
 - rollback/recovery plan for material changes.
 
-A workflow that is unavailable, skipped unexpectedly, or unable to evaluate required evidence is not automatically a pass.
+A workflow that is unavailable, skipped unexpectedly, cancelled by a newer head, or unable to evaluate required evidence is not automatically a pass. Release evidence must correspond to the exact candidate commit whose readiness is being assessed.
 
 ## Production-readiness authority
 
