@@ -93,11 +93,13 @@ The production contract is:
 - authorization denial should identify the denied capability or operation without leaking protected object contents;
 - CSRF failures should identify the failure category without recording the CSRF value.
 
-### Current inherited-source blocker
+### Source authentication-hardening checkpoint
 
-The current inherited HTTP authentication path in `internal/server/server.go` still logs the remote address and submitted username on failed login, and can log remote address plus username on successful login when request logging is enabled. This does **not** satisfy the GoreeCloud production logging contract above and remains a release blocker until the inherited path is reconciled and regression-tested.
+The maintained HTTP authentication boundary in `internal/server/server.go` now emits stable structured authentication event names without interpolating submitted usernames or remote addresses. Missing and invalid credentials are represented as bounded reason categories rather than copied caller-controlled identity data.
 
-The same authentication path currently creates a short-term authentication cookie without the GoreeCloud release contract explicitly proving `HttpOnly`, `Secure`, and an intentional `SameSite` policy in the target deployment. Cookie behavior must be reviewed and tested before Stable classification rather than assumed from transport topology.
+The short-term authentication optimization cookie is now explicitly `HttpOnly`, `Secure`, and `SameSite=Strict`. JWT validation is constrained to the intended HS256 algorithm, GoreeCloud Backup's inherited Kopia audience and issuer contract, normal temporal validity, and the authenticated subject. Regression tests in `internal/server/server_goreecloud_security_test.go` verify cookie attributes, subject binding, wrong issuer/audience rejection, and invalid-credential denial.
+
+These source changes close the previously recorded authentication logging/cookie source blocker. They do not by themselves prove target-environment TLS termination, proxy behavior, authorization policy, log retention, or complete runtime security acceptance; those remain production-acceptance requirements.
 
 ## Error handling and retries
 
