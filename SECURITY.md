@@ -28,6 +28,8 @@ GoreeCloud Backup uses layered security-maintenance controls:
 
 A scanner result is evidence, not the whole security decision. Findings must be reviewed for reachability, exploitability, affected deployment paths, fixed versions, rollback compatibility, and recovery impact.
 
+Security evidence is exact-candidate evidence. A passing security workflow on an older source head does not automatically validate a newer candidate. A workflow cancelled because a newer commit superseded it is not a source failure, but it is not a passing security result for the new head either.
+
 ## Secret handling
 
 Reusable secrets must not be committed to this repository. This includes passwords, private keys, API tokens, OAuth client secrets, database passwords, webhook tokens, session-signing secrets, encryption keys, recovery codes, and backup passwords.
@@ -59,7 +61,7 @@ GitHub Dependency Review is also required when technically available. The workfl
 Before a GoreeCloud Backup release can be classified as stable, applicable security evidence must include:
 
 - supported software/dependency baselines;
-- passing release-relevant source, lint, test, compatibility, and vulnerability gates;
+- passing release-relevant source, lint, test, compatibility, and vulnerability gates on the exact candidate;
 - no unresolved release-blocking vulnerability without a documented exception;
 - no known reusable secret in GoreeCloud-owned changes;
 - reviewed Electron/package dependencies and lockfile integrity;
