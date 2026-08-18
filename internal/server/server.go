@@ -844,9 +844,12 @@ func (s *Server) ServeStaticFiles(m *mux.Router, fs http.FileSystem) {
 				sessionID = uuid.NewString()
 
 				http.SetCookie(w, &http.Cookie{
-					Name:  kopiaSessionCookie,
-					Value: sessionID,
-					Path:  "/",
+					Name:     kopiaSessionCookie,
+					Value:    sessionID,
+					Path:     "/",
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
 				})
 			}
 
