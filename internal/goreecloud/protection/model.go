@@ -55,17 +55,17 @@ func (s EvidenceStatus) valid() bool {
 type EvidenceKind string
 
 const (
-	EvidenceRepositoryAvailable     EvidenceKind = "repository_available"
-	EvidenceCredentialsRecoverable  EvidenceKind = "credentials_recoverable"
-	EvidenceRecoveryPointAvailable  EvidenceKind = "recovery_point_available"
-	EvidenceBackupCurrent           EvidenceKind = "backup_current"
-	EvidenceIntegrity               EvidenceKind = "integrity"
-	EvidenceScope                   EvidenceKind = "scope"
-	EvidenceApplicationConsistency  EvidenceKind = "application_consistency"
-	EvidenceRetention               EvidenceKind = "retention"
-	EvidenceMaintenance             EvidenceKind = "maintenance"
-	EvidenceMonitoring              EvidenceKind = "monitoring"
-	EvidenceNotification            EvidenceKind = "notification"
+	EvidenceRepositoryAvailable    EvidenceKind = "repository_available"
+	EvidenceCredentialsRecoverable EvidenceKind = "credentials_recoverable"
+	EvidenceRecoveryPointAvailable EvidenceKind = "recovery_point_available"
+	EvidenceBackupCurrent          EvidenceKind = "backup_current"
+	EvidenceIntegrity              EvidenceKind = "integrity"
+	EvidenceScope                  EvidenceKind = "scope"
+	EvidenceApplicationConsistency EvidenceKind = "application_consistency"
+	EvidenceRetention              EvidenceKind = "retention"
+	EvidenceMaintenance            EvidenceKind = "maintenance"
+	EvidenceMonitoring             EvidenceKind = "monitoring"
+	EvidenceNotification           EvidenceKind = "notification"
 )
 
 var baselineRequiredEvidence = []EvidenceKind{
@@ -132,15 +132,15 @@ type Assessment struct {
 type ReasonCode string
 
 const (
-	ReasonNotConfigured               ReasonCode = "not_configured"
-	ReasonBackupInProgress            ReasonCode = "backup_in_progress"
-	ReasonRequiredEvidenceMissing     ReasonCode = "required_evidence_missing"
-	ReasonRequiredEvidenceFailed      ReasonCode = "required_evidence_failed"
-	ReasonRequiredEvidenceStale       ReasonCode = "required_evidence_stale"
+	ReasonNotConfigured              ReasonCode = "not_configured"
+	ReasonBackupInProgress           ReasonCode = "backup_in_progress"
+	ReasonRequiredEvidenceMissing    ReasonCode = "required_evidence_missing"
+	ReasonRequiredEvidenceFailed     ReasonCode = "required_evidence_failed"
+	ReasonRequiredEvidenceStale      ReasonCode = "required_evidence_stale"
 	ReasonOperationalEvidencePassing ReasonCode = "operational_evidence_passing"
-	ReasonRestoreVerificationPassing  ReasonCode = "restore_verification_passing"
-	ReasonRestoreVerificationFailed   ReasonCode = "restore_verification_failed"
-	ReasonRestoreVerificationStale    ReasonCode = "restore_verification_stale"
+	ReasonRestoreVerificationPassing ReasonCode = "restore_verification_passing"
+	ReasonRestoreVerificationFailed  ReasonCode = "restore_verification_failed"
+	ReasonRestoreVerificationStale   ReasonCode = "restore_verification_stale"
 )
 
 // Evaluation is a deterministic, privacy-conscious state result.
