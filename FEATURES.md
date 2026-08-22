@@ -75,7 +75,7 @@ A security workflow pass does not imply a backup is Protected or Restore Verifie
 - Explicit separation between source validation, packaging/runtime acceptance, target-environment acceptance, and representative recovery evidence.
 - Production-readiness documentation preserving unresolved blockers instead of silently waiving them.
 
-### Protection-state and recovery-evidence domain foundation
+### Protection-state, recovery-evidence, and policy domain foundation
 
 The branch contains a GoreeCloud-owned product-layer package at `internal/goreecloud/protection` that implements:
 
@@ -94,9 +94,16 @@ The branch contains a GoreeCloud-owned product-layer package at `internal/goreec
 - bounded recovery-evidence records;
 - bounded restore-test types, validation checks, and failure categories;
 - recovery-evidence validation that intentionally has no field for restored private contents, reusable credentials, tokens, encryption keys, or raw backend output;
-- automated unit tests for the core state and evidence rules.
+- a source-level `Policy` model that cannot silently remove baseline evidence requirements;
+- optional positive freshness thresholds for required operational evidence;
+- optional positive freshness thresholds for restore-verification results;
+- deterministic freshness evaluation at an explicit evaluation timestamp rather than through direct wall-clock reads;
+- conversion of expired passing evidence into stale evidence and `Degraded` state;
+- rejection of invalid policy requirements, duplicate requirements, negative freshness values, and observation times after the selected evaluation time;
+- automated unit tests for the core state, evidence, policy, and freshness rules;
+- a focused GoreeCloud Protection GitHub Actions gate that checks gofmt conformance and runs the recovery-assurance domain tests.
 
-This is currently a source-level domain foundation. It is not yet persisted, exposed through a stable product API, connected to the UI, or fed by production backup/repository/monitoring systems.
+This is currently a source-level domain foundation. It is not yet persisted, exposed through a stable product API, connected to the UI, administered through a complete policy workflow, or fed by production backup/repository/monitoring systems.
 
 ## Experimental or partial features
 
@@ -107,6 +114,12 @@ The current server-side presentation overlay is an interim compatibility bridge.
 ### Protection-state runtime integration
 
 The protection-state evaluator is implemented and tested at the domain layer, but runtime adapters that collect authoritative repository, backup, integrity, retention, monitoring, notification, credential-recovery, and application-consistency evidence are not yet complete.
+
+### Protection policy source foundation
+
+The source now defines a baseline protection policy and freshness-aware evaluation contract. A policy may tighten evidence freshness but cannot silently remove the GoreeCloud baseline recovery-evidence requirements. Passing evidence can age into `Stale`, and an expired restore-verification result can move a workload out of `Restore Verified` into `Degraded`.
+
+Policy administration is still incomplete. Durable policy storage, configuration validation at product boundaries, workload assignment, administrator editing, stable API representation, explicit duration serialization, migration/versioning, and authoritative runtime evidence producers remain future implementation work.
 
 ### Recovery-evidence persistence and query
 
@@ -121,8 +134,10 @@ The repository contains the icon contract and release validator, but approved ca
 ### Protection management
 
 - Protected-system and dataset inventory.
-- Protection policy model.
-- Policy-specific evidence requirements and freshness thresholds.
+- Durable policy storage and policy assignment.
+- Administrator-facing policy creation and editing.
+- Workload-specific evidence and applicability rules that cannot weaken the baseline silently.
+- Stable API representation for freshness thresholds and policy versions.
 - Repository assignment and multi-repository policy.
 - Central scheduling.
 - Retention administration.
