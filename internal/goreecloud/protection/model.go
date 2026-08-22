@@ -55,17 +55,17 @@ func (s EvidenceStatus) valid() bool {
 type EvidenceKind string
 
 const (
-	EvidenceRepositoryAvailable    EvidenceKind = "repository_available"
-	EvidenceCredentialsRecoverable EvidenceKind = "credentials_recoverable"
-	EvidenceRecoveryPointAvailable EvidenceKind = "recovery_point_available"
-	EvidenceBackupCurrent          EvidenceKind = "backup_current"
-	EvidenceIntegrity              EvidenceKind = "integrity"
-	EvidenceScope                  EvidenceKind = "scope"
-	EvidenceApplicationConsistency EvidenceKind = "application_consistency"
-	EvidenceRetention              EvidenceKind = "retention"
-	EvidenceMaintenance            EvidenceKind = "maintenance"
-	EvidenceMonitoring             EvidenceKind = "monitoring"
-	EvidenceNotification           EvidenceKind = "notification"
+	EvidenceRepositoryAvailable     EvidenceKind = "repository_available"
+	EvidenceCredentialsRecoverable  EvidenceKind = "credentials_recoverable"
+	EvidenceRecoveryPointAvailable  EvidenceKind = "recovery_point_available"
+	EvidenceBackupCurrent           EvidenceKind = "backup_current"
+	EvidenceIntegrity               EvidenceKind = "integrity"
+	EvidenceScope                   EvidenceKind = "scope"
+	EvidenceApplicationConsistency  EvidenceKind = "application_consistency"
+	EvidenceRetention               EvidenceKind = "retention"
+	EvidenceMaintenance             EvidenceKind = "maintenance"
+	EvidenceMonitoring              EvidenceKind = "monitoring"
+	EvidenceNotification            EvidenceKind = "notification"
 )
 
 var baselineRequiredEvidence = []EvidenceKind{
@@ -138,9 +138,9 @@ const (
 	ReasonRequiredEvidenceFailed      ReasonCode = "required_evidence_failed"
 	ReasonRequiredEvidenceStale       ReasonCode = "required_evidence_stale"
 	ReasonOperationalEvidencePassing ReasonCode = "operational_evidence_passing"
-	ReasonRestoreVerificationPassing ReasonCode = "restore_verification_passing"
-	ReasonRestoreVerificationFailed  ReasonCode = "restore_verification_failed"
-	ReasonRestoreVerificationStale   ReasonCode = "restore_verification_stale"
+	ReasonRestoreVerificationPassing  ReasonCode = "restore_verification_passing"
+	ReasonRestoreVerificationFailed   ReasonCode = "restore_verification_failed"
+	ReasonRestoreVerificationStale    ReasonCode = "restore_verification_stale"
 )
 
 // Evaluation is a deterministic, privacy-conscious state result.
@@ -275,8 +275,8 @@ func sortEvidenceKinds(v []EvidenceKind) {
 type VerificationType string
 
 const (
-	VerificationFileSample             VerificationType = "file_sample"
-	VerificationMetadataSample         VerificationType = "metadata_sample"
+	VerificationFileSample            VerificationType = "file_sample"
+	VerificationMetadataSample        VerificationType = "metadata_sample"
 	VerificationApplicationDataset    VerificationType = "application_dataset"
 	VerificationApplicationBehavior   VerificationType = "application_behavior"
 	VerificationRepresentativeRestore VerificationType = "representative_restore"
@@ -295,11 +295,11 @@ func (v VerificationType) valid() bool {
 type ValidationCheck string
 
 const (
-	ValidationContentHash          ValidationCheck = "content_hash"
-	ValidationMetadata             ValidationCheck = "metadata"
-	ValidationOwnership            ValidationCheck = "ownership"
-	ValidationPermissions          ValidationCheck = "permissions"
-	ValidationApplicationStart     ValidationCheck = "application_start"
+	ValidationContentHash         ValidationCheck = "content_hash"
+	ValidationMetadata            ValidationCheck = "metadata"
+	ValidationOwnership           ValidationCheck = "ownership"
+	ValidationPermissions         ValidationCheck = "permissions"
+	ValidationApplicationStart    ValidationCheck = "application_start"
 	ValidationApplicationBehavior ValidationCheck = "application_behavior"
 )
 
