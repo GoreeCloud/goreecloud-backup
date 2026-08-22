@@ -34,6 +34,14 @@ const (
 	EvidenceNotApplicable EvidenceStatus = "not_applicable"
 )
 
+func normalizeEvidenceStatus(s EvidenceStatus) EvidenceStatus {
+	if s == "" {
+		return EvidenceUnknown
+	}
+
+	return s
+}
+
 func (s EvidenceStatus) valid() bool {
 	switch s {
 	case EvidenceUnknown, EvidencePassing, EvidenceFailing, EvidenceStale, EvidenceNotApplicable:
@@ -47,22 +55,62 @@ func (s EvidenceStatus) valid() bool {
 type EvidenceKind string
 
 const (
-	EvidenceRepositoryAvailable     EvidenceKind = "repository_available"
+	EvidenceRepositoryAvailable    EvidenceKind = "repository_available"
 	EvidenceCredentialsRecoverable EvidenceKind = "credentials_recoverable"
-	EvidenceRecoveryPointAvailable  EvidenceKind = "recovery_point_available"
-	EvidenceBackupCurrent           EvidenceKind = "backup_current"
-	EvidenceIntegrity               EvidenceKind = "integrity"
-	EvidenceScope                   EvidenceKind = "scope"
-	EvidenceApplicationConsistency  EvidenceKind = "application_consistency"
-	EvidenceRetention               EvidenceKind = "retention"
-	EvidenceMaintenance             EvidenceKind = "maintenance"
-	EvidenceMonitoring              EvidenceKind = "monitoring"
-	EvidenceNotification            EvidenceKind = "notification"
+	EvidenceRecoveryPointAvailable EvidenceKind = "recovery_point_available"
+	EvidenceBackupCurrent          EvidenceKind = "backup_current"
+	EvidenceIntegrity              EvidenceKind = "integrity"
+	EvidenceScope                  EvidenceKind = "scope"
+	EvidenceApplicationConsistency EvidenceKind = "application_consistency"
+	EvidenceRetention              EvidenceKind = "retention"
+	EvidenceMaintenance            EvidenceKind = "maintenance"
+	EvidenceMonitoring             EvidenceKind = "monitoring"
+	EvidenceNotification           EvidenceKind = "notification"
 )
 
+var baselineRequiredEvidence = []EvidenceKind{
+	EvidenceRepositoryAvailable,
+	EvidenceCredentialsRecoverable,
+	EvidenceRecoveryPointAvailable,
+	EvidenceBackupCurrent,
+	EvidenceIntegrity,
+	EvidenceScope,
+	EvidenceApplicationConsistency,
+	EvidenceRetention,
+	EvidenceMaintenance,
+	EvidenceMonitoring,
+	EvidenceNotification,
+}
+
+func (k EvidenceKind) valid() bool {
+	switch k {
+	case EvidenceRepositoryAvailable,
+		EvidenceCredentialsRecoverable,
+		EvidenceRecoveryPointAvailable,
+		EvidenceBackupCurrent,
+		EvidenceIntegrity,
+		EvidenceScope,
+		EvidenceApplicationConsistency,
+		EvidenceRetention,
+		EvidenceMaintenance,
+		EvidenceMonitoring,
+		EvidenceNotification:
+		return true
+	default:
+		return false
+	}
+}
+
+// BaselineRequiredEvidence returns the default evidence gates for Protected.
+// The returned slice is a copy and may be safely modified by the caller.
+func BaselineRequiredEvidence() []EvidenceKind {
+	return append([]EvidenceKind(nil), baselineRequiredEvidence...)
+}
+
 // EvidenceItem is one policy-selected recovery-assurance check.
-// Required checks gate Protected and Degraded state. Optional checks may be
-// reported without becoming protection-state gates.
+// Baseline evidence always gates Protected and Degraded state. Required may be
+// used by future policies to make an otherwise optional bounded check a gate;
+// it never disables a baseline requirement.
 type EvidenceItem struct {
 	Kind     EvidenceKind   `json:"kind"`
 	Status   EvidenceStatus `json:"status"`
@@ -84,12 +132,11 @@ type Assessment struct {
 type ReasonCode string
 
 const (
-	ReasonNotConfigured              ReasonCode = "not_configured"
-	ReasonBackupInProgress           ReasonCode = "backup_in_progress"
-	ReasonNoRequiredEvidence         ReasonCode = "no_required_evidence"
-	ReasonRequiredEvidenceMissing    ReasonCode = "required_evidence_missing"
-	ReasonRequiredEvidenceFailed     ReasonCode = "required_evidence_failed"
-	ReasonRequiredEvidenceStale      ReasonCode = "required_evidence_stale"
+	ReasonNotConfigured               ReasonCode = "not_configured"
+	ReasonBackupInProgress            ReasonCode = "backup_in_progress"
+	ReasonRequiredEvidenceMissing     ReasonCode = "required_evidence_missing"
+	ReasonRequiredEvidenceFailed      ReasonCode = "required_evidence_failed"
+	ReasonRequiredEvidenceStale       ReasonCode = "required_evidence_stale"
 	ReasonOperationalEvidencePassing ReasonCode = "operational_evidence_passing"
 	ReasonRestoreVerificationPassing ReasonCode = "restore_verification_passing"
 	ReasonRestoreVerificationFailed  ReasonCode = "restore_verification_failed"
@@ -115,43 +162,59 @@ type Evaluation struct {
 //   - passing required operational evidence is Protected;
 //   - only an explicit passing restore verification can produce Restore Verified.
 //
-// A successful snapshot alone therefore cannot produce Restore Verified.
+// Baseline evidence is always required even when a caller omits it from the
+// assessment, so a successful snapshot alone cannot produce Protected or
+// Restore Verified.
 func Evaluate(a Assessment) (Evaluation, error) {
-	if !a.RestoreVerification.valid() {
+	restoreVerification := normalizeEvidenceStatus(a.RestoreVerification)
+	if !restoreVerification.valid() {
 		return Evaluation{}, fmt.Errorf("invalid restore verification status %q", a.RestoreVerification)
 	}
 
 	var out Evaluation
 	seen := map[EvidenceKind]struct{}{}
-	requiredCount := 0
+	statusByKind := map[EvidenceKind]EvidenceStatus{}
+	required := map[EvidenceKind]struct{}{}
+	for _, kind := range baselineRequiredEvidence {
+		required[kind] = struct{}{}
+	}
 
 	for _, item := range a.Evidence {
 		if strings.TrimSpace(string(item.Kind)) == "" {
 			return Evaluation{}, fmt.Errorf("evidence kind must not be empty")
 		}
-		if !item.Status.valid() {
+		if !item.Kind.valid() {
+			return Evaluation{}, fmt.Errorf("invalid evidence kind %q", item.Kind)
+		}
+		status := normalizeEvidenceStatus(item.Status)
+		if !status.valid() {
 			return Evaluation{}, fmt.Errorf("invalid status %q for evidence %q", item.Status, item.Kind)
 		}
 		if _, ok := seen[item.Kind]; ok {
 			return Evaluation{}, fmt.Errorf("duplicate evidence kind %q", item.Kind)
 		}
 		seen[item.Kind] = struct{}{}
+		statusByKind[item.Kind] = status
+		if item.Required {
+			required[item.Kind] = struct{}{}
+		}
+	}
 
-		if !item.Required {
+	for kind := range required {
+		status, ok := statusByKind[kind]
+		if !ok || status == EvidenceUnknown {
+			out.Missing = append(out.Missing, kind)
 			continue
 		}
-		requiredCount++
-		if item.Status == EvidenceNotApplicable {
-			return Evaluation{}, fmt.Errorf("required evidence %q cannot be not applicable", item.Kind)
+		if status == EvidenceNotApplicable {
+			return Evaluation{}, fmt.Errorf("required evidence %q cannot be not applicable", kind)
 		}
 
-		switch item.Status {
-		case EvidenceUnknown:
-			out.Missing = append(out.Missing, item.Kind)
+		switch status {
 		case EvidenceFailing:
-			out.Failed = append(out.Failed, item.Kind)
+			out.Failed = append(out.Failed, kind)
 		case EvidenceStale:
-			out.Stale = append(out.Stale, item.Kind)
+			out.Stale = append(out.Stale, kind)
 		}
 	}
 
@@ -165,7 +228,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 		return out, nil
 	}
 
-	if len(out.Failed) > 0 || len(out.Stale) > 0 || a.RestoreVerification == EvidenceFailing || a.RestoreVerification == EvidenceStale {
+	if len(out.Failed) > 0 || len(out.Stale) > 0 || restoreVerification == EvidenceFailing || restoreVerification == EvidenceStale {
 		out.State = StateDegraded
 		if len(out.Failed) > 0 {
 			out.Reasons = append(out.Reasons, ReasonRequiredEvidenceFailed)
@@ -173,10 +236,10 @@ func Evaluate(a Assessment) (Evaluation, error) {
 		if len(out.Stale) > 0 {
 			out.Reasons = append(out.Reasons, ReasonRequiredEvidenceStale)
 		}
-		if a.RestoreVerification == EvidenceFailing {
+		if restoreVerification == EvidenceFailing {
 			out.Reasons = append(out.Reasons, ReasonRestoreVerificationFailed)
 		}
-		if a.RestoreVerification == EvidenceStale {
+		if restoreVerification == EvidenceStale {
 			out.Reasons = append(out.Reasons, ReasonRestoreVerificationStale)
 		}
 		return out, nil
@@ -188,12 +251,6 @@ func Evaluate(a Assessment) (Evaluation, error) {
 		return out, nil
 	}
 
-	if requiredCount == 0 {
-		out.State = StateConfigured
-		out.Reasons = []ReasonCode{ReasonNoRequiredEvidence}
-		return out, nil
-	}
-
 	if len(out.Missing) > 0 {
 		out.State = StateConfigured
 		out.Reasons = []ReasonCode{ReasonRequiredEvidenceMissing}
@@ -202,7 +259,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 
 	out.State = StateProtected
 	out.Reasons = []ReasonCode{ReasonOperationalEvidencePassing}
-	if a.RestoreVerification == EvidencePassing {
+	if restoreVerification == EvidencePassing {
 		out.State = StateRestoreVerified
 		out.Reasons = append(out.Reasons, ReasonRestoreVerificationPassing)
 	}
@@ -218,10 +275,10 @@ func sortEvidenceKinds(v []EvidenceKind) {
 type VerificationType string
 
 const (
-	VerificationFileSample          VerificationType = "file_sample"
-	VerificationMetadataSample      VerificationType = "metadata_sample"
-	VerificationApplicationDataset VerificationType = "application_dataset"
-	VerificationApplicationBehavior VerificationType = "application_behavior"
+	VerificationFileSample             VerificationType = "file_sample"
+	VerificationMetadataSample         VerificationType = "metadata_sample"
+	VerificationApplicationDataset    VerificationType = "application_dataset"
+	VerificationApplicationBehavior   VerificationType = "application_behavior"
 	VerificationRepresentativeRestore VerificationType = "representative_restore"
 )
 
@@ -238,11 +295,11 @@ func (v VerificationType) valid() bool {
 type ValidationCheck string
 
 const (
-	ValidationContentHash         ValidationCheck = "content_hash"
-	ValidationMetadata            ValidationCheck = "metadata"
-	ValidationOwnership           ValidationCheck = "ownership"
-	ValidationPermissions         ValidationCheck = "permissions"
-	ValidationApplicationStart   ValidationCheck = "application_start"
+	ValidationContentHash          ValidationCheck = "content_hash"
+	ValidationMetadata             ValidationCheck = "metadata"
+	ValidationOwnership            ValidationCheck = "ownership"
+	ValidationPermissions          ValidationCheck = "permissions"
+	ValidationApplicationStart     ValidationCheck = "application_start"
 	ValidationApplicationBehavior ValidationCheck = "application_behavior"
 )
 
