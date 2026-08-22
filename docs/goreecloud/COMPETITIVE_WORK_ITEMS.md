@@ -2,9 +2,13 @@
 
 This backlog converts the competitive-positioning requirements into implementation-sized GoreeCloud Backup work while preserving the recovery-critical safety boundary.
 
+Implementation status in this file is source-level status unless explicitly stated otherwise. Source implementation does not imply Stable classification, packaged-runtime acceptance, target-environment acceptance, or production cutover.
+
 ## Priority 1 — Protection-state domain model
 
-Implement a GoreeCloud-controlled product-layer state model for:
+**Status: source foundation implemented; runtime evidence integration remains incomplete.**
+
+The GoreeCloud-controlled product-layer state model now exists in `internal/goreecloud/protection` for:
 
 - Unprotected;
 - Configured;
@@ -13,17 +17,31 @@ Implement a GoreeCloud-controlled product-layer state model for:
 - Restore Verified;
 - Degraded.
 
-Required behavior:
+Implemented behavior includes:
 
-- snapshot success alone cannot produce `Restore Verified`;
-- unavailable, stale, skipped, or failed required evidence must not be treated as passing;
-- state transitions must be deterministic and testable;
-- the model must remain separate from Wardveil presentation and from inherited Kopia repository internals;
-- future API consumers must be able to read state without direct repository access.
+- recovery-point or snapshot success alone cannot produce `Protected` or `Restore Verified`;
+- the domain owns a baseline required-evidence set instead of trusting callers to enumerate every required check;
+- omitted required evidence is treated as missing;
+- stale or failed required evidence produces `Degraded`;
+- only explicit passing restore verification can produce `Restore Verified` after required operational evidence passes;
+- state results expose bounded reason codes and sorted missing/failed/stale evidence identifiers;
+- evidence kinds and statuses are bounded and validated;
+- state transitions are deterministic and unit tested;
+- the model remains separate from Wardveil presentation and inherited Kopia repository internals.
+
+Remaining work:
+
+- authoritative runtime collectors for repository, credential, recovery-point, currency, integrity, scope, consistency, retention, maintenance, monitoring, and notification evidence;
+- policy-specific evidence and freshness rules where justified;
+- persistent current-state materialization where appropriate;
+- stable API and UI exposure;
+- target-environment acceptance.
 
 ## Priority 2 — Recovery-evidence model
 
-Create a privacy-conscious evidence model capable of recording:
+**Status: source schema and validation implemented; persistence and operational evidence collection remain incomplete.**
+
+The product layer now contains privacy-conscious evidence types capable of representing:
 
 - protected system or dataset identity;
 - repository identity;
@@ -31,15 +49,32 @@ Create a privacy-conscious evidence model capable of recording:
 - backup completion status;
 - integrity result;
 - restore-test date and type;
-- validation result;
+- bounded validation checks;
 - bounded failure category;
 - software version;
-- applicable protection policy;
-- applicable recovery procedure.
+- applicable protection policy reference;
+- applicable recovery procedure reference.
 
-Do not store restored private contents merely to prove that a restore succeeded.
+Implemented privacy boundary:
+
+- the model intentionally has no field for restored private contents;
+- it has no field for reusable credentials, access tokens, encryption keys, authorization material, or raw backend output;
+- passing and failing restore evidence is validated for internal consistency;
+- duplicate or unknown validation checks are rejected.
+
+Remaining work:
+
+- durable evidence storage and schema-version/migration policy;
+- retention and pruning rules;
+- evidence query and history interfaces;
+- authorization boundaries;
+- Manager/API/UI views;
+- collection from real backup, verification, and restore workflows;
+- target-environment validation.
 
 ## Priority 3 — Guided restore verification
+
+**Status: planned.**
 
 Design and implement a guided restore-test workflow that can:
 
@@ -53,6 +88,8 @@ Design and implement a guided restore-test workflow that can:
 Long-term automation may be added only after the guided workflow and destructive/failure behavior are proven safe.
 
 ## Priority 4 — Application Protection Profiles
+
+**Status: planned.**
 
 Introduce reusable profiles that can describe a workload protection contract including:
 
@@ -75,6 +112,8 @@ Profiles must be declarative where practical and must not silently execute privi
 
 ## Priority 5 — Application-consistency adapters
 
+**Status: planned.**
+
 Build a controlled adapter boundary for common consistency mechanisms such as:
 
 - PostgreSQL exports;
@@ -88,19 +127,23 @@ The adapter model must make the consistency method visible to the administrator 
 
 ## Priority 6 — Engine abstraction boundary
 
+**Status: planned.**
+
 Define stable GoreeCloud interfaces around the inherited backup engine for:
 
 - repository discovery and health;
-- snapshot listing;
+- snapshot/recovery-point listing;
 - backup execution status;
 - retention status;
 - verification;
 - restore planning and execution;
 - diagnostics.
 
-The abstraction must not intentionally hide recovery-critical behavior from validation. Its purpose is to prevent GoreeCloud integrations and product logic from becoming unnecessarily coupled to Kopia-specific command or internal implementation details.
+The abstraction must not intentionally hide recovery-critical behavior from validation. Its purpose is to prevent GoreeCloud integrations and product logic from becoming unnecessarily coupled to Kopia-specific commands or internal implementation details.
 
 ## Priority 7 — Independent observability integration
+
+**Status: observability contract exists; product integration is planned.**
 
 Expose structured, least-privilege events and status suitable for future GoreeCloud Monitor and GoreeCloud Notify integrations.
 
@@ -121,9 +164,17 @@ No event may contain reusable credentials, encryption keys, authorization materi
 
 ## Priority 8 — Competitive review harness
 
-Create a repeatable internal review process using the dimensions in `COMPETITIVE_POSITIONING.md`.
+**Status: repository product records established; automated comparative review remains planned.**
 
-At each material product milestone, record whether GoreeCloud Backup has improved, regressed, or remains intentionally different in:
+The repository now maintains:
+
+- root `COMPETITIVE-OBJECTIVES.md`;
+- root `FEATURES.md`;
+- root `BENEFITS.md`;
+- detailed `docs/goreecloud/COMPETITIVE_POSITIONING.md`;
+- this implementation backlog.
+
+At each material product milestone, review whether GoreeCloud Backup has improved, regressed, or remains intentionally different in:
 
 - recovery confidence;
 - restore usability;
@@ -136,6 +187,19 @@ At each material product milestone, record whether GoreeCloud Backup has improve
 - migration capability.
 
 Competitive review results are planning evidence, not production-readiness evidence.
+
+## Next implementation sequence
+
+The next product-layer sequence should be:
+
+1. define the protection policy model, including evidence freshness and workload-specific applicability without allowing baseline recovery requirements to disappear silently;
+2. define a persistence boundary for recovery evidence with privacy, authorization, retention, and schema-version rules;
+3. define a narrow engine-adapter interface for read-only repository/recovery-point health evidence before adding mutation or restore execution;
+4. expose a small internal/status API for protection evaluation without granting consumers direct repository access;
+5. begin guided restore-verification design against disposable repositories and isolated destinations;
+6. only then connect Manager, Monitor, Notify, and UI consumers to authoritative product-layer state.
+
+This order keeps state semantics and evidence authority stable before multiple consumers depend on them.
 
 ## Recovery-critical exclusion
 
