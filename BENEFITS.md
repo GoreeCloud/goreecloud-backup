@@ -54,6 +54,24 @@ The evaluator owns a baseline evidence set and treats omitted required evidence 
 
 This provides a safer foundation for future UI, API, Manager, Monitor, and Notify consumers because they can be built around deterministic recovery semantics rather than assuming that job success equals recoverability.
 
+### Recovery confidence can expire instead of remaining permanently green
+
+The source-level protection policy can apply explicit positive freshness limits to required operational evidence and restore-verification results. When a previously passing result exceeds the applicable policy age, it becomes stale and the evaluated protection state becomes `Degraded` rather than remaining indefinitely `Protected` or `Restore Verified`.
+
+This prevents a past success from being treated as current recovery confidence forever. The baseline policy does not invent arbitrary freshness durations: a positive age limit must come from an applicable policy, while evidence producers may also report stale state directly.
+
+### Freshness evaluation is deterministic and replayable
+
+Freshness-aware state calculation receives an explicit evaluation timestamp and does not read the system clock directly.
+
+That makes the same evidence and policy produce the same result for a selected point in time. This is useful for tests, future API behavior, incident review, audit history, and replay of historical recovery evidence without time-dependent ambiguity.
+
+### Policies cannot silently weaken the baseline recovery contract
+
+The current source-level policy validator rejects a policy that removes any GoreeCloud baseline evidence requirement. Policies may tighten freshness requirements, but they cannot turn missing core recovery evidence into an intentional pass merely through configuration.
+
+This creates a safer foundation for future administrator policy editing and workload assignment, although those user-facing administration workflows are not yet implemented.
+
 ### Recovery-evidence types minimize private-content retention by design
 
 The current recovery-evidence model records bounded identifiers, statuses, validation checks, timestamps, and failure categories without providing fields for restored private file contents, reusable credentials, tokens, encryption keys, or raw backend responses.
@@ -65,6 +83,12 @@ This creates a privacy-preserving foundation for proving recovery outcomes witho
 Protection evaluation returns stable states, reason codes, and sorted missing/failed/stale evidence identifiers.
 
 Although the stable product API is not yet implemented, this deterministic source contract reduces ambiguity for future integrations and makes the domain behavior straightforward to test.
+
+### Focused recovery-assurance CI catches domain drift quickly
+
+The dedicated GoreeCloud Protection workflow checks formatting and runs the recovery-assurance package tests whenever the protection domain changes.
+
+This provides a narrow, fast validation path for state, evidence, and policy semantics without replacing the broader inherited test, compatibility, security, packaging, or target-recovery gates.
 
 ### Glaze UI provides a consistent accessibility and presentation foundation
 
@@ -96,8 +120,9 @@ Current source and governance provide administrators with:
 - source-level Glaze UI and Wardveil Security contracts;
 - privacy-conscious observability rules;
 - deterministic protection-state semantics ready for future integration;
+- a freshness-aware source policy that can expire old recovery confidence;
 - bounded recovery-evidence structures ready for future persistence and API work;
-- automated GoreeCloud UI and security validation in addition to inherited upstream checks.
+- focused recovery-assurance CI plus automated GoreeCloud UI and security validation in addition to inherited upstream checks.
 
 These are development and governance benefits. They do not yet provide a complete GoreeCloud-native backup-management console.
 
@@ -125,7 +150,8 @@ Current security benefits include:
 - reachable Go vulnerability analysis;
 - production Electron dependency auditing;
 - deterministic security evidence retention;
-- explicit separation between security evidence and recovery evidence.
+- explicit separation between security evidence and recovery evidence;
+- a policy-validation boundary that prevents removal of baseline recovery evidence requirements.
 
 ## Ownership and independence benefits
 
@@ -144,7 +170,7 @@ A complete engine-independent runtime is still planned, not current.
 
 The strongest current recovery benefit is architectural discipline: source and documentation consistently require representative restoration rather than successful backup execution as the ultimate evidence of recoverability.
 
-The newly implemented protection-state domain layer turns that principle into deterministic code, but representative restore orchestration and production recovery evidence are still future work.
+The implemented protection-state and freshness-policy domain layers turn part of that principle into deterministic code. Old passing evidence can become stale, but representative restore orchestration, authoritative runtime evidence collection, durable evidence history, and production recovery acceptance are still future work.
 
 ## Accessibility benefits
 
@@ -154,7 +180,7 @@ These source-level accommodations reduce the likelihood that recovery administra
 
 ## Integration benefits
 
-The product-layer state and evidence structures are designed so future GoreeCloud consumers can read bounded product state instead of directly coupling to recovery-critical repository internals.
+The product-layer state, policy, and evidence structures are designed so future GoreeCloud consumers can read bounded product state instead of directly coupling to recovery-critical repository internals.
 
 This is expected to make Manager, Monitor, Notify, API, CLI, and future Identity integration safer and easier to evolve. Those integrations are not yet complete.
 
@@ -162,6 +188,7 @@ This is expected to make Manager, Monitor, Notify, API, CLI, and future Identity
 
 The following benefits depend on planned functionality and must remain future-facing until implemented and validated:
 
+- administrator-facing protection-policy creation, editing, assignment, persistence, and versioning;
 - routine guided restore testing from the administration interface;
 - scheduled automated representative recovery tests;
 - application-aware backup contracts through Application Protection Profiles;
