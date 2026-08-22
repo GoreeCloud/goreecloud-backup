@@ -2,7 +2,17 @@
 
 GoreeCloud Backup is the GoreeCloud-maintained backup and recovery platform built on the mature [Kopia](https://github.com/kopia/kopia) codebase.
 
-> **Development status:** active maintained-fork development. This candidate is **not Stable and is not approved to replace an existing production Kopia deployment**. The GoreeCloud product, Glaze UI, Wardveil Security, security-evidence, and operational-governance boundaries are established, but source blockers, representative runtime acceptance, unique product artwork, integrations, and target-environment recovery acceptance remain required.
+> **Development status:** active maintained-fork development. This candidate is **not Stable and is not approved to replace an existing production Kopia deployment**. The GoreeCloud product, Glaze UI, Wardveil Security, recovery-assurance domain, security-evidence, and operational-governance foundations are established, but representative runtime acceptance, unique product artwork, product integrations, complete recovery-management implementation, and target-environment recovery acceptance remain required.
+
+## Product records
+
+The repository maintains three product-development records that separate objectives, implementation state, and supportable benefits:
+
+- [Competitive Objectives](COMPETITIVE-OBJECTIVES.md) — what GoreeCloud Backup should learn from, match, exceed, or deliberately approach differently;
+- [Features](FEATURES.md) — what is implemented in source, partial, planned, or not production accepted;
+- [Benefits](BENEFITS.md) — why current capabilities matter without claiming benefits that depend on unfinished features.
+
+Detailed competitive working notes remain in [docs/goreecloud/COMPETITIVE_POSITIONING.md](docs/goreecloud/COMPETITIVE_POSITIONING.md) and [docs/goreecloud/COMPETITIVE_WORK_ITEMS.md](docs/goreecloud/COMPETITIVE_WORK_ITEMS.md).
 
 ## Product role
 
@@ -10,16 +20,16 @@ GoreeCloud Backup is designed to protect GoreeCloud information while making rec
 
 The long-term product layer is intended to provide clear protection state, repository health, retention visibility, restore verification, recovery evidence, guided recovery workflows, and controlled integrations with the wider GoreeCloud platform while preserving a narrowly bounded recovery engine.
 
-The planned protection vocabulary is:
+The GoreeCloud product protection vocabulary is now defined in the source-level recovery-assurance domain model:
 
 - **Unprotected** — no approved protection is configured;
-- **Configured** — protection is configured but required successful evidence is incomplete;
-- **Backing Up** — an approved backup operation is active;
-- **Protected** — current backup and policy evidence meet the defined protection threshold;
-- **Restore Verified** — representative recovery has been successfully validated;
-- **Degraded** — required protection or recovery evidence is incomplete, stale, or failing.
+- **Configured** — protection is configured but required evidence is incomplete;
+- **Backing Up** — an approved healthy backup operation is active;
+- **Protected** — required operational recovery evidence satisfies the defined baseline;
+- **Restore Verified** — required operational evidence passes and representative recovery has explicitly passed validation;
+- **Degraded** — required protection or recovery evidence is stale or failing.
 
-A successful snapshot does not by itself imply **Restore Verified**.
+A successful recovery point or snapshot does not by itself imply **Protected** or **Restore Verified**.
 
 ## Current implementation
 
@@ -35,15 +45,41 @@ The maintained-fork foundation currently provides:
 - Compact, Medium, Expanded, and Wide adaptive source rules;
 - keyboard focus, practical target sizing, coarse-pointer support, reduced motion, reduced transparency, increased contrast, forced-colors handling, no-blur fallbacks, and print resilience;
 - no new remote UI dependency, analytics, tracker, advertising, or third-party-font requirement in the GoreeCloud-owned Glaze layer;
-- a fail-closed Glaze source conformance validator and dedicated GitHub Actions validation gate;
+- a fail-closed Glaze source-conformance validator and dedicated GitHub Actions validation gate;
 - a GoreeCloud/Wardveil security policy and fail-closed source validator;
 - deterministic dependency/toolchain evidence retention in the GoreeCloud Security workflow;
 - hardened Electron renderer, IPC, certificate, and navigation boundaries;
+- hardened authentication-cookie, JWT, authentication-logging, request-path logging, and CSRF/session-cookie behavior with focused GoreeCloud regression coverage;
 - a privacy-conscious structured-observability transition contract in [docs/goreecloud/OBSERVABILITY.md](docs/goreecloud/OBSERVABILITY.md);
 - a fail-closed exact-candidate production-readiness evidence contract in [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md);
+- a source-level GoreeCloud protection-state and recovery-evidence domain in `internal/goreecloud/protection` with deterministic state evaluation and unit tests;
 - an inherited end-to-end title/security assertion reconciled to the GoreeCloud Backup product identity while preserving HTML-escaping coverage.
 
+The protection-state domain is not yet wired to persistent product storage, a stable GoreeCloud Backup API, the administration UI, or target-environment evidence collectors. It is a source-level foundation rather than a completed backup-management feature.
+
 The current Glaze implementation and remaining visual acceptance gates are recorded in [docs/goreecloud/GLAZE_UI_CONFORMANCE.md](docs/goreecloud/GLAZE_UI_CONFORMANCE.md).
+
+## Recovery-assurance domain
+
+The GoreeCloud-owned package at `internal/goreecloud/protection` is deliberately isolated from Kopia repository internals.
+
+Its current baseline evidence vocabulary covers:
+
+- repository availability;
+- recovery-credential availability;
+- recovery-point availability;
+- backup currency;
+- integrity;
+- protected scope;
+- application consistency;
+- retention;
+- maintenance;
+- monitoring;
+- notification.
+
+Omitting baseline evidence is treated as missing rather than silently passing. Failed or stale required evidence produces `Degraded`. `Restore Verified` requires an explicit passing restore-verification result in addition to passing baseline operational evidence.
+
+The recovery-evidence structures use bounded identifiers, statuses, validation checks, and failure categories and intentionally contain no field for restored private file contents, reusable credentials, tokens, encryption keys, authorization material, or raw backend responses.
 
 ## Glaze UI
 
@@ -84,6 +120,7 @@ The GoreeCloud-owned security gate currently includes:
 - production Electron dependency auditing;
 - source-secret/path checks and policy-drift validation;
 - Electron security-boundary checks;
+- GoreeCloud authentication/request-integrity regression coverage;
 - Glaze/Wardveil shell privacy checks;
 - deterministic Go/Node/npm and dependency-input evidence retained through GitHub Actions.
 
@@ -93,15 +130,15 @@ Routine logs must not contain passwords, backup passwords, access tokens, privat
 
 The following items are explicitly unresolved and prevent Stable classification:
 
-- the inherited HTTP authentication path in `internal/server/server.go` still logs remote address and submitted username on failed login and may log remote address plus username on successful login when request logging is enabled;
-- the inherited short-term authentication cookie requires explicit review and regression evidence for `HttpOnly`, `Secure`, and an intentional `SameSite` policy;
 - GitHub Dependency Review cannot currently operate because Dependency Graph is disabled for this fork;
 - unique GoreeCloud Backup icon/favicon/launcher/PWA/packaging artwork remains required;
 - representative packaged desktop validation and Glaze runtime/visual/accessibility acceptance remain required;
+- direct GoreeCloud frontend-source ownership remains incomplete where the current presentation overlay is still an interim compatibility bridge;
+- protection-state evidence collectors, durable recovery-evidence storage, stable product API/CLI, guided restore verification, policy, scheduling, and application-protection layers remain incomplete;
 - planned GoreeCloud Manager, Monitor, Notify, API/CLI, and future Identity integrations remain governed implementation targets rather than completed claims;
 - target-environment repository, scheduling, retention, monitoring, notification, rollback, and representative restore acceptance remain required.
 
-These blockers are intentionally visible in source governance rather than being waived by branding, UI polish, or a partially green CI matrix.
+These blockers are intentionally visible in source governance rather than being waived by branding, UI polish, a domain-model implementation, or a partially green CI matrix.
 
 ## Upstream foundation
 
@@ -154,7 +191,7 @@ Development in this repository must not be treated as authorization to modify, r
 
 A future production cutover requires separate target-environment acceptance, including representative restoration and recovery-evidence collection. Existing recovery points remain authoritative until a replacement has been proven.
 
-No Glaze UI, Wardveil Security presentation, vulnerability scan, branding, build, or source-conformance success can substitute for restore validation.
+No Glaze UI, Wardveil Security presentation, vulnerability scan, branding, build, source-conformance success, or protection-state calculation can substitute for restore validation.
 
 ## Validation
 
@@ -166,7 +203,7 @@ The broader inherited build, lint, test, coverage, compatibility, race-detector,
 
 Dependency Review is also intentionally retained. If GitHub repository configuration prevents it from running, that configuration issue remains a readiness item rather than a reason to remove the security gate.
 
-Release evidence is exact-candidate evidence. A passing workflow on an older head does not automatically validate a newer head, and a cancelled superseded workflow is neither a source failure nor a passing result for the replacement candidate. The PR remains draft while release-blocking source gaps or exact-head validation remain unresolved.
+Release evidence is exact-candidate evidence. A passing workflow on an older head does not automatically validate a newer head, and a cancelled superseded workflow is neither a source failure nor a passing result for the replacement candidate. The PR remains draft while release-blocking gaps or exact-head validation remain unresolved.
 
 See [docs/goreecloud/PRODUCTION_READINESS.md](docs/goreecloud/PRODUCTION_READINESS.md) for the complete evidence model.
 
