@@ -11,17 +11,17 @@ import (
 
 func passingOperationalEvidence() []protection.EvidenceItem {
 	return []protection.EvidenceItem{
-		{Kind: protection.EvidenceRepositoryAvailable, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceCredentialsRecoverable, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceRecoveryPointAvailable, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceBackupCurrent, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceIntegrity, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceScope, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceApplicationConsistency, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceRetention, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceMaintenance, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceMonitoring, Status: protection.EvidencePassing, Required: true},
-		{Kind: protection.EvidenceNotification, Status: protection.EvidencePassing, Required: true},
+		{Kind: protection.EvidenceRepositoryAvailable, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceCredentialsRecoverable, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceRecoveryPointAvailable, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceBackupCurrent, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceIntegrity, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceScope, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceApplicationConsistency, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceRetention, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceMaintenance, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceMonitoring, Status: protection.EvidencePassing},
+		{Kind: protection.EvidenceNotification, Status: protection.EvidencePassing},
 	}
 }
 
@@ -33,55 +33,36 @@ func TestEvaluateProtectionState(t *testing.T) {
 		wantReason protection.ReasonCode
 	}{
 		{
-			name: "not configured is unprotected",
-			assessment: protection.Assessment{
-				RestoreVerification: protection.EvidenceUnknown,
-			},
+			name:       "zero value is unprotected",
+			assessment: protection.Assessment{},
 			want:       protection.StateUnprotected,
 			wantReason: protection.ReasonNotConfigured,
 		},
 		{
 			name: "configured with no evidence remains configured",
 			assessment: protection.Assessment{
-				Configured:          true,
-				RestoreVerification: protection.EvidenceUnknown,
-			},
-			want:       protection.StateConfigured,
-			wantReason: protection.ReasonNoRequiredEvidence,
-		},
-		{
-			name: "active backup is backing up",
-			assessment: protection.Assessment{
-				Configured:          true,
-				BackupInProgress:    true,
-				Evidence:            passingOperationalEvidence(),
-				RestoreVerification: protection.EvidenceUnknown,
-			},
-			want:       protection.StateBackingUp,
-			wantReason: protection.ReasonBackupInProgress,
-		},
-		{
-			name: "missing required evidence remains configured",
-			assessment: protection.Assessment{
 				Configured: true,
-				Evidence: []protection.EvidenceItem{
-					{Kind: protection.EvidenceRecoveryPointAvailable, Status: protection.EvidencePassing, Required: true},
-					{Kind: protection.EvidenceIntegrity, Status: protection.EvidenceUnknown, Required: true},
-				},
-				RestoreVerification: protection.EvidenceUnknown,
 			},
 			want:       protection.StateConfigured,
 			wantReason: protection.ReasonRequiredEvidenceMissing,
 		},
 		{
-			name: "snapshot success alone is not protected",
+			name: "active healthy backup is backing up",
+			assessment: protection.Assessment{
+				Configured:       true,
+				BackupInProgress: true,
+				Evidence:         passingOperationalEvidence(),
+			},
+			want:       protection.StateBackingUp,
+			wantReason: protection.ReasonBackupInProgress,
+		},
+		{
+			name: "snapshot success alone remains configured",
 			assessment: protection.Assessment{
 				Configured: true,
 				Evidence: []protection.EvidenceItem{
-					{Kind: protection.EvidenceRecoveryPointAvailable, Status: protection.EvidencePassing, Required: true},
-					{Kind: protection.EvidenceIntegrity, Status: protection.EvidenceUnknown, Required: true},
+					{Kind: protection.EvidenceRecoveryPointAvailable, Status: protection.EvidencePassing},
 				},
-				RestoreVerification: protection.EvidenceUnknown,
 			},
 			want:       protection.StateConfigured,
 			wantReason: protection.ReasonRequiredEvidenceMissing,
@@ -89,9 +70,8 @@ func TestEvaluateProtectionState(t *testing.T) {
 		{
 			name: "passing operational evidence is protected",
 			assessment: protection.Assessment{
-				Configured:          true,
-				Evidence:            passingOperationalEvidence(),
-				RestoreVerification: protection.EvidenceUnknown,
+				Configured: true,
+				Evidence:   passingOperationalEvidence(),
 			},
 			want:       protection.StateProtected,
 			wantReason: protection.ReasonOperationalEvidencePassing,
@@ -111,9 +91,8 @@ func TestEvaluateProtectionState(t *testing.T) {
 			assessment: protection.Assessment{
 				Configured: true,
 				Evidence: []protection.EvidenceItem{
-					{Kind: protection.EvidenceRepositoryAvailable, Status: protection.EvidenceFailing, Required: true},
+					{Kind: protection.EvidenceRepositoryAvailable, Status: protection.EvidenceFailing},
 				},
-				RestoreVerification: protection.EvidenceUnknown,
 			},
 			want:       protection.StateDegraded,
 			wantReason: protection.ReasonRequiredEvidenceFailed,
@@ -134,9 +113,8 @@ func TestEvaluateProtectionState(t *testing.T) {
 				Configured:       true,
 				BackupInProgress: true,
 				Evidence: []protection.EvidenceItem{
-					{Kind: protection.EvidenceRepositoryAvailable, Status: protection.EvidenceFailing, Required: true},
+					{Kind: protection.EvidenceRepositoryAvailable, Status: protection.EvidenceFailing},
 				},
-				RestoreVerification: protection.EvidenceUnknown,
 			},
 			want:       protection.StateDegraded,
 			wantReason: protection.ReasonRequiredEvidenceFailed,
@@ -153,39 +131,75 @@ func TestEvaluateProtectionState(t *testing.T) {
 	}
 }
 
+func TestSnapshotSuccessCannotSatisfyBaselineEvidence(t *testing.T) {
+	got, err := protection.Evaluate(protection.Assessment{
+		Configured: true,
+		Evidence: []protection.EvidenceItem{
+			{Kind: protection.EvidenceRecoveryPointAvailable, Status: protection.EvidencePassing},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, protection.StateConfigured, got.State)
+	require.Contains(t, got.Missing, protection.EvidenceRepositoryAvailable)
+	require.Contains(t, got.Missing, protection.EvidenceIntegrity)
+	require.Contains(t, got.Missing, protection.EvidenceMonitoring)
+	require.NotContains(t, got.Missing, protection.EvidenceRecoveryPointAvailable)
+}
+
+func TestBaselineRequiredEvidenceReturnsCopy(t *testing.T) {
+	first := protection.BaselineRequiredEvidence()
+	require.NotEmpty(t, first)
+	first[0] = protection.EvidenceIntegrity
+
+	second := protection.BaselineRequiredEvidence()
+	require.Equal(t, protection.EvidenceRepositoryAvailable, second[0])
+}
+
 func TestEvaluateRejectsInvalidEvidence(t *testing.T) {
 	t.Run("duplicate evidence kind", func(t *testing.T) {
 		_, err := protection.Evaluate(protection.Assessment{
 			Configured: true,
 			Evidence: []protection.EvidenceItem{
-				{Kind: protection.EvidenceIntegrity, Status: protection.EvidencePassing, Required: true},
-				{Kind: protection.EvidenceIntegrity, Status: protection.EvidencePassing, Required: true},
+				{Kind: protection.EvidenceIntegrity, Status: protection.EvidencePassing},
+				{Kind: protection.EvidenceIntegrity, Status: protection.EvidencePassing},
 			},
-			RestoreVerification: protection.EvidenceUnknown,
 		})
 		require.ErrorContains(t, err, "duplicate evidence kind")
 	})
 
-	t.Run("required evidence cannot be not applicable", func(t *testing.T) {
+	t.Run("baseline evidence cannot be not applicable", func(t *testing.T) {
 		_, err := protection.Evaluate(protection.Assessment{
 			Configured: true,
 			Evidence: []protection.EvidenceItem{
-				{Kind: protection.EvidenceIntegrity, Status: protection.EvidenceNotApplicable, Required: true},
+				{Kind: protection.EvidenceIntegrity, Status: protection.EvidenceNotApplicable},
 			},
-			RestoreVerification: protection.EvidenceUnknown,
 		})
 		require.ErrorContains(t, err, "cannot be not applicable")
+	})
+
+	t.Run("unknown evidence kind", func(t *testing.T) {
+		_, err := protection.Evaluate(protection.Assessment{
+			Configured: true,
+			Evidence: []protection.EvidenceItem{
+				{Kind: protection.EvidenceKind("arbitrary_check"), Status: protection.EvidencePassing},
+			},
+		})
+		require.ErrorContains(t, err, "invalid evidence kind")
 	})
 }
 
 func TestEvaluationSortsEvidenceForStableAPIResults(t *testing.T) {
+	evidence := passingOperationalEvidence()
+	for i := range evidence {
+		switch evidence[i].Kind {
+		case protection.EvidenceScope, protection.EvidenceBackupCurrent:
+			evidence[i].Status = protection.EvidenceFailing
+		}
+	}
+
 	got, err := protection.Evaluate(protection.Assessment{
 		Configured: true,
-		Evidence: []protection.EvidenceItem{
-			{Kind: protection.EvidenceScope, Status: protection.EvidenceFailing, Required: true},
-			{Kind: protection.EvidenceBackupCurrent, Status: protection.EvidenceFailing, Required: true},
-		},
-		RestoreVerification: protection.EvidenceUnknown,
+		Evidence:   evidence,
 	})
 	require.NoError(t, err)
 	require.Equal(t, []protection.EvidenceKind{
