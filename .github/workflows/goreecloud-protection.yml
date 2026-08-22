@@ -1,0 +1,46 @@
+name: GoreeCloud Protection
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'internal/goreecloud/protection/**'
+      - '.github/workflows/goreecloud-protection.yml'
+  push:
+    branches: [ master, 'agent/**' ]
+    paths:
+      - 'internal/goreecloud/protection/**'
+      - '.github/workflows/goreecloud-protection.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate recovery-assurance domain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: true
+
+      - name: Verify protection package formatting
+        run: |
+          unformatted="$(gofmt -l internal/goreecloud/protection)"
+          if [ -n "$unformatted" ]; then
+            printf 'gofmt is required for:\n%s\n' "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Test recovery-assurance domain
+        run: go test ./internal/goreecloud/protection
