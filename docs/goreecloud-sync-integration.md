@@ -2,7 +2,7 @@
 
 ## Status
 
-**Development status:** Source-level contract foundation implemented on the GoreeCloud Backup development branch.
+**Development status:** Source-level contract and checkpoint-authorization foundation implemented on the GoreeCloud Backup development branch.
 
 **Production status:** Not implemented or accepted for production use.
 
@@ -21,7 +21,7 @@ Synchronization is not backup. A synchronized duplicate must not be represented 
 The Backup-to-Sync contract therefore exposes only three product-layer operations:
 
 1. Read bounded Backup-owned protection state for an explicitly scoped dataset.
-2. Request a pre-change or pre-migration checkpoint through a future authenticated adapter.
+2. Request a pre-change or pre-migration checkpoint through an authorization-gated Backup service boundary.
 3. Coordinate the safety boundary around a restore that targets a Sync-managed dataset.
 
 The contract does not expose authority to delete recovery points, delete repositories, change retention, rotate encryption material, run repository maintenance, disable protection, or perform general synchronization.
@@ -67,9 +67,13 @@ The source contract recognizes only two Sync-originated checkpoint purposes:
 
 The request contains bounded opaque identifiers and an authorization-decision reference. That reference is metadata only. Its presence is not proof of authorization.
 
-A future runtime adapter must authenticate the caller and validate applicable GoreeCloud Identity, Wardveil Security, Privacy Shield, and other authorization requirements before invoking a real Backup operation. The current package does not implement that runtime authorization and must not be described as doing so.
+The source now includes `CheckpointService`, which fails closed unless both a `CheckpointAuthorizer` and a Backup-owned `CheckpointExecutor` are configured. Before execution, the service validates the request, asks the authorizer to independently evaluate it, requires an explicit allowed decision whose decision reference exactly matches the request, and only then passes a reduced `AuthorizedCheckpointRequest` to the Backup-owned executor.
 
-A checkpoint request also does not prove that a backup completed, was independently stored, passed integrity verification, or can be restored. Those remain Backup-owned recovery facts.
+Authorization errors, denials, mismatched decision references, malformed requests, executor failures, and malformed execution receipts all fail closed. The executor cannot be reached through `CheckpointService` merely because a caller supplied an authorization-decision reference.
+
+`CheckpointSubmission` records only that the Backup-owned execution adapter accepted a request. Acceptance is not backup completion, integrity verification, restore verification, or proof that a usable recovery point exists.
+
+A concrete runtime authorizer must still authenticate the caller and validate applicable GoreeCloud Identity, Wardveil Security, Privacy Shield, and other authorization requirements. The current package provides the enforcement seam and source-level ordering guarantee; it does not implement GoreeCloud Identity or transport authentication itself and must not be described as doing so.
 
 ## Restore safety for Sync-managed paths
 
@@ -96,11 +100,11 @@ This prevents a circular dependency in which a failed Sync service blocks recove
 
 ## Authorization and security boundary
 
-This package is deliberately not an authentication or authorization system.
+This package is deliberately not an authentication or identity system.
 
-It provides structural validation only. Network admission, authenticated service identity, user/device authorization, policy evaluation, replay protection, transport security, and authorization-decision verification remain responsibilities of future explicit platform adapters and the applicable GoreeCloud Identity, Mesh, Wardveil Security, and Privacy Shield contracts.
+It now provides an authorization-gated service seam for checkpoint submission, but network admission, authenticated service identity, user/device authentication, policy evaluation, replay protection, transport security, and concrete authorization-decision verification remain responsibilities of explicit platform adapters and the applicable GoreeCloud Identity, Mesh, Wardveil Security, and Privacy Shield contracts.
 
-No caller-supplied field should be treated as proof of permission by itself.
+No caller-supplied field is treated as proof of permission by itself. A future concrete `CheckpointAuthorizer` must verify the external decision rather than echoing the caller's reference.
 
 Backup repository credentials and destructive backup authority must remain separately protected. Access to a synchronized dataset must not automatically grant authority to erase its independent recovery history.
 
@@ -112,6 +116,11 @@ The repository includes focused unit tests intended to prove that:
 - destructive Backup-domain operations fail closed at this boundary;
 - Backup protection state is copied into a bounded Sync-facing view;
 - invalid contract versions, identifiers, protection states, and checkpoint purposes fail closed;
+- malformed checkpoint requests are rejected before authorization;
+- an explicit matching allowed authorization decision is required before executor invocation;
+- authorization denial, authorization-adapter failure, and mismatched decision references prevent execution;
+- executor failure cannot be converted into a successful checkpoint submission;
+- malformed execution receipts are rejected;
 - Sync-managed restores require staging and reconciliation safeguards;
 - loss of Sync availability does not eliminate access to controlled staged recovery;
 - non-Sync-managed restores do not become dependent on Sync.
@@ -123,12 +132,12 @@ Repository CI remains required for the exact source revision. A source-level tes
 The following remain intentionally incomplete:
 
 - authenticated Backup↔Sync transport;
-- GoreeCloud Identity service/user authorization integration;
+- concrete GoreeCloud Identity service/user authorization adapter and decision verification;
 - GoreeCloud Mesh discovery, event, or evidence transport;
 - Wardveil Security acceptance for the runtime integration;
 - Privacy Shield acceptance for runtime metadata and data flows;
 - durable mapping between Sync dataset identifiers and Backup protection scopes;
-- runtime checkpoint execution and completion evidence;
+- a concrete Backup checkpoint executor and authoritative completion evidence;
 - Sync pause or maintenance orchestration;
 - restore staging and promotion implementation;
 - post-restore reconciliation execution;
@@ -138,4 +147,4 @@ The following remain intentionally incomplete:
 - failure-mode testing with one product unavailable;
 - production and Stable acceptance.
 
-Until those items are implemented and verified, this integration must be represented as a source-level contract foundation only.
+Until those items are implemented and verified, this integration must be represented as a source-level contract and authorization-enforcement foundation only.
