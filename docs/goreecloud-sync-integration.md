@@ -2,7 +2,7 @@
 
 ## Status
 
-**Development status:** Source-level contract and checkpoint-authorization foundation implemented on the GoreeCloud Backup development branch.
+**Development status:** Source-level authority, authorization-ordering, Backup-owned dataset-scope mapping, checkpoint lifecycle-evidence, and restore-safety contracts are implemented on the GoreeCloud Backup development branch.
 
 **Production status:** Not implemented or accepted for production use.
 
@@ -12,9 +12,9 @@ This document describes the repository-local implementation boundary between Gor
 
 GoreeCloud Backup and GoreeCloud Sync have different responsibilities and must remain independently useful.
 
-GoreeCloud Backup owns recovery-domain truth, including independent protection state, recovery points, retention, repository state, verification, restore evidence, and backup-domain restore behavior.
+GoreeCloud Backup owns recovery-domain truth, including independent protection state, recovery points, protection scopes, retention, repository state, verification, restore evidence, and backup-domain restore behavior.
 
-GoreeCloud Sync owns synchronization-domain truth, including ongoing state convergence, synchronization direction, Sync-managed folder state, conflicts, deletion propagation, and post-restore synchronization reconciliation.
+GoreeCloud Sync owns synchronization-domain truth, including ongoing state convergence, synchronization direction, Sync-managed dataset state, conflicts, deletion propagation, and post-restore synchronization reconciliation.
 
 Synchronization is not backup. A synchronized duplicate must not be represented as independent recovery evidence merely because another copy exists.
 
@@ -46,13 +46,7 @@ This is a pre-stabilization internal identifier, not a public compatibility prom
 
 ## Protection awareness
 
-`ProtectionView` provides a privacy-conscious projection of Backup-owned protection state. It can carry:
-
-- the scoped dataset identifier;
-- the evaluation time;
-- the derived protection state;
-- bounded reason codes;
-- bounded missing, failed, and stale evidence categories.
+`ProtectionView` provides a privacy-conscious projection of Backup-owned protection state. It can carry the scoped dataset identifier, evaluation time, derived protection state, bounded reason codes, and bounded missing, failed, and stale evidence categories.
 
 It does not contain backed-up file contents, file paths, credentials, repository passwords, encryption keys, access tokens, raw backend output, or other reusable secret material.
 
@@ -67,13 +61,51 @@ The source contract recognizes only two Sync-originated checkpoint purposes:
 
 The request contains bounded opaque identifiers and an authorization-decision reference. That reference is metadata only. Its presence is not proof of authorization.
 
-The source now includes `CheckpointService`, which fails closed unless both a `CheckpointAuthorizer` and a Backup-owned `CheckpointExecutor` are configured. Before execution, the service validates the request, asks the authorizer to independently evaluate it, requires an explicit allowed decision whose decision reference exactly matches the request, and only then passes a reduced `AuthorizedCheckpointRequest` to the Backup-owned executor.
+`CheckpointService` fails closed unless a `CheckpointAuthorizer`, Backup-owned `DatasetScopeResolver`, and Backup-owned `CheckpointExecutor` are configured. Before execution, the service:
 
-Authorization errors, denials, mismatched decision references, malformed requests, executor failures, and malformed execution receipts all fail closed. The executor cannot be reached through `CheckpointService` merely because a caller supplied an authorization-decision reference.
+1. validates the operation and request structure;
+2. asks the authorizer to independently evaluate the request;
+3. requires an explicit allowed decision whose decision reference exactly matches the request;
+4. only after authorization, resolves the Sync dataset through Backup-owned mapping state;
+5. requires the resolved mapping to match the requested dataset and be active;
+6. inserts the Backup-owned scope ID and mapping revision into the reduced authorized request;
+7. invokes the Backup-owned executor; and
+8. validates that the executor receipt is bound to the exact request, dataset, and Backup scope.
 
-`CheckpointSubmission` records only that the Backup-owned execution adapter accepted a request. Acceptance is not backup completion, integrity verification, restore verification, or proof that a usable recovery point exists.
+Authorization occurs before scope resolution so an unauthorized caller cannot use this service to probe whether a Backup protection scope exists for a dataset.
 
-A concrete runtime authorizer must still authenticate the caller and validate applicable GoreeCloud Identity, Wardveil Security, Privacy Shield, and other authorization requirements. The current package provides the enforcement seam and source-level ordering guarantee; it does not implement GoreeCloud Identity or transport authentication itself and must not be described as doing so.
+Authorization errors, denials, mismatched decision references, mapping lookup failures, inactive or mismatched mappings, malformed requests, executor failures, and malformed execution receipts all fail closed.
+
+## Backup-owned dataset-to-scope mapping
+
+`DatasetScopeMapping` establishes the source contract for mapping one opaque GoreeCloud Sync dataset ID to a Backup-owned protection scope ID. It also carries a Backup-owned mapping revision, active state, and update time.
+
+The mapping intentionally carries no filesystem path, protected content, credentials, repository location, encryption material, or Sync policy state.
+
+GoreeCloud Sync does not submit `BackupScopeID`. The Backup integration resolves that value through `DatasetScopeResolver` only after the checkpoint request has passed authorization. This prevents Sync from selecting or escalating into a broader Backup scope by changing a request field.
+
+The current code defines and validates the mapping contract and resolver seam. A concrete authoritative durable mapping store, migration/versioning behavior, administrator workflow, and runtime configuration path are still incomplete and must not be represented as implemented.
+
+## Checkpoint lifecycle and recovery evidence
+
+`CheckpointSubmission` means only that the Backup-owned execution adapter accepted a request. Acceptance is not backup completion, integrity verification, restore verification, or proof that a usable recovery point exists.
+
+`CheckpointStatus` adds a Backup-owned lifecycle/evidence model with four states:
+
+- `accepted`;
+- `running`;
+- `failed`;
+- `completed`.
+
+Accepted and running states are prohibited from claiming a recovery point, integrity verification, restore verification, or failure evidence. Failed status must use a bounded failure category and cannot claim a usable recovery point. Completed status must identify a recovery point, but completion by itself is still not sufficient for a protected-change decision.
+
+`ReadyForProtectedChange()` returns true only when the status is structurally valid, the operation is completed, Backup reports the recovery point as usable, and integrity verification has passed. Restore verification is stronger evidence and is represented separately; it is not automatically required for every individual pre-change checkpoint because a controlling runtime policy may impose a stronger requirement for a particular change.
+
+Cross-product failure evidence is deliberately limited to bounded categories rather than raw repository, path, credential, backend, or protected-content errors.
+
+`ValidateForSubmission` binds lifecycle evidence to the exact request ID, operation ID, dataset ID, and Backup scope ID in the accepted submission and rejects status observations that predate acceptance. This prevents evidence from a different checkpoint or protection scope from satisfying the request.
+
+`CheckpointStatusProvider` is only a Backup-owned source seam for future authoritative runtime evidence. A submission or operation ID is correlation data, not a bearer credential; authenticated and authorized runtime access to status remains required.
 
 ## Restore safety for Sync-managed paths
 
@@ -102,13 +134,13 @@ This prevents a circular dependency in which a failed Sync service blocks recove
 
 This package is deliberately not an authentication or identity system.
 
-It now provides an authorization-gated service seam for checkpoint submission, but network admission, authenticated service identity, user/device authentication, policy evaluation, replay protection, transport security, and concrete authorization-decision verification remain responsibilities of explicit platform adapters and the applicable GoreeCloud Identity, Mesh, Wardveil Security, and Privacy Shield contracts.
+It provides an authorization-gated service seam for checkpoint submission, but network admission, authenticated service identity, user/device authentication, policy evaluation, replay protection, transport security, and concrete authorization-decision verification remain responsibilities of explicit platform adapters and the applicable GoreeCloud Identity, Mesh, Wardveil Security, and Privacy Shield contracts.
 
 No caller-supplied field is treated as proof of permission by itself. A future concrete `CheckpointAuthorizer` must verify the external decision rather than echoing the caller's reference.
 
 Backup repository credentials and destructive backup authority must remain separately protected. Access to a synchronized dataset must not automatically grant authority to erase its independent recovery history.
 
-## Validation
+## Validation expectations
 
 The repository includes focused unit tests intended to prove that:
 
@@ -117,12 +149,16 @@ The repository includes focused unit tests intended to prove that:
 - Backup protection state is copied into a bounded Sync-facing view;
 - invalid contract versions, identifiers, protection states, and checkpoint purposes fail closed;
 - malformed checkpoint requests are rejected before authorization;
-- an explicit matching allowed authorization decision is required before executor invocation;
-- authorization denial, authorization-adapter failure, and mismatched decision references prevent execution;
-- executor failure cannot be converted into a successful checkpoint submission;
-- malformed execution receipts are rejected;
+- an explicit matching allowed authorization decision is required before mapping or executor invocation;
+- denied or failed authorization cannot be used to probe dataset-to-scope mappings through `CheckpointService`;
+- Sync cannot supply a Backup protection scope to the executor;
+- missing, inactive, malformed, or mismatched dataset mappings prevent execution;
+- executor receipts must match the exact request, dataset, and resolved Backup scope;
+- a checkpoint submission alone never becomes recovery-ready evidence;
+- lifecycle evidence rejects contradictory states and binds to the exact accepted submission;
+- only a completed, usable, integrity-verified recovery point satisfies the source-level protected-change predicate;
 - Sync-managed restores require staging and reconciliation safeguards;
-- loss of Sync availability does not eliminate access to controlled staged recovery;
+- loss of Sync availability does not eliminate access to controlled staged recovery; and
 - non-Sync-managed restores do not become dependent on Sync.
 
 Repository CI remains required for the exact source revision. A source-level test pass does not establish production integration, target-environment authorization, production restore safety, or Stable qualification.
@@ -136,15 +172,16 @@ The following remain intentionally incomplete:
 - GoreeCloud Mesh discovery, event, or evidence transport;
 - Wardveil Security acceptance for the runtime integration;
 - Privacy Shield acceptance for runtime metadata and data flows;
-- durable mapping between Sync dataset identifiers and Backup protection scopes;
-- a concrete Backup checkpoint executor and authoritative completion evidence;
+- authoritative durable storage and administration for Sync-dataset-to-Backup-scope mappings;
+- a concrete Backup checkpoint executor;
+- an authoritative runtime checkpoint-status provider connected to real recovery-point and integrity evidence;
 - Sync pause or maintenance orchestration;
 - restore staging and promotion implementation;
 - post-restore reconciliation execution;
 - audit history for cross-product operations;
 - UI integration in Backup and Sync;
 - target-environment restore testing;
-- failure-mode testing with one product unavailable;
+- failure-mode testing with one product unavailable; and
 - production and Stable acceptance.
 
-Until those items are implemented and verified, this integration must be represented as a source-level contract and authorization-enforcement foundation only.
+Until those items are implemented and verified, this integration must be represented as a source-level contract, authorization-ordering, scope-mapping, lifecycle-evidence, and restore-safety foundation only.
