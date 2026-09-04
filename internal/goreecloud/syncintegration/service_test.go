@@ -67,15 +67,15 @@ func validCheckpointSubmission() CheckpointSubmission {
 func validCheckpointRuntimeSeams() (*fakeCheckpointAuthorizer, *fakeDatasetScopeResolver, *fakeCheckpointExecutor) {
 	request := validCheckpointRequest()
 	return &fakeCheckpointAuthorizer{
-		decision: AuthorizationDecision{
-			DecisionRef: request.AuthorizationDecisionRef,
-			Allowed:     true,
-		},
-	}, &fakeDatasetScopeResolver{
-		mapping: validDatasetScopeMapping(),
-	}, &fakeCheckpointExecutor{
-		submission: validCheckpointSubmission(),
-	}
+			decision: AuthorizationDecision{
+				DecisionRef: request.AuthorizationDecisionRef,
+				Allowed:     true,
+			},
+		}, &fakeDatasetScopeResolver{
+			mapping: validDatasetScopeMapping(),
+		}, &fakeCheckpointExecutor{
+			submission: validCheckpointSubmission(),
+		}
 }
 
 func TestCheckpointServiceRequiresAllRuntimeSeams(t *testing.T) {
