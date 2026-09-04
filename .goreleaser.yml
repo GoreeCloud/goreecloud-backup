@@ -1,5 +1,8 @@
-# This is an example goreleaser.yaml file with some sane defaults.
-# Make sure to check the documentation at http://goreleaser.com
+# GoreeCloud Backup preserves the inherited Kopia engine artifact name here because
+# compatibility tests, Electron embedding, recovery tooling, and repository migration
+# paths still consume dist/kopia_* artifacts. User-facing product identity remains
+# GoreeCloud Backup; this internal build identity is a deliberate compatibility boundary.
+project_name: kopia
 builds:
 - env:
   - CGO_ENABLED=0
