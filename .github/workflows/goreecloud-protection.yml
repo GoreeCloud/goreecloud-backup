@@ -5,11 +5,13 @@ on:
     branches: [ master ]
     paths:
       - 'internal/goreecloud/protection/**'
+      - 'internal/goreecloud/syncintegration/**'
       - '.github/workflows/goreecloud-protection.yml'
   push:
     branches: [ master, 'agent/**' ]
     paths:
       - 'internal/goreecloud/protection/**'
+      - 'internal/goreecloud/syncintegration/**'
       - '.github/workflows/goreecloud-protection.yml'
 
 permissions:
@@ -34,13 +36,13 @@ jobs:
           check-latest: false
           cache: true
 
-      - name: Verify protection package formatting
+      - name: Verify GoreeCloud recovery-domain formatting
         run: |
-          unformatted="$(gofmt -l internal/goreecloud/protection)"
+          unformatted="$(gofmt -l internal/goreecloud/protection internal/goreecloud/syncintegration)"
           if [ -n "$unformatted" ]; then
             printf 'gofmt is required for:\n%s\n' "$unformatted" >&2
             exit 1
           fi
 
-      - name: Test recovery-assurance domain
-        run: go test ./internal/goreecloud/protection
+      - name: Test GoreeCloud recovery-domain contracts
+        run: go test ./internal/goreecloud/protection ./internal/goreecloud/syncintegration
