@@ -6,12 +6,16 @@ on:
     paths:
       - 'internal/goreecloud/protection/**'
       - 'internal/goreecloud/syncintegration/**'
+      - 'docs/goreecloud-sync-integration.md'
+      - 'FEATURES.md'
       - '.github/workflows/goreecloud-protection.yml'
   push:
     branches: [ master, 'agent/**' ]
     paths:
       - 'internal/goreecloud/protection/**'
       - 'internal/goreecloud/syncintegration/**'
+      - 'docs/goreecloud-sync-integration.md'
+      - 'FEATURES.md'
       - '.github/workflows/goreecloud-protection.yml'
 
 permissions:
