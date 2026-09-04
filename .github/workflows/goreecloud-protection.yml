@@ -41,6 +41,7 @@ jobs:
           unformatted="$(gofmt -l internal/goreecloud/protection internal/goreecloud/syncintegration)"
           if [ -n "$unformatted" ]; then
             printf 'gofmt is required for:\n%s\n' "$unformatted" >&2
+            gofmt -d internal/goreecloud/protection internal/goreecloud/syncintegration >&2
             exit 1
           fi
 
