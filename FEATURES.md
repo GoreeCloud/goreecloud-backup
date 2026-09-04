@@ -112,16 +112,27 @@ The branch contains a GoreeCloud-owned source contract at `internal/goreecloud/s
 - a versioned pre-stabilization contract identifier;
 - a bounded read-only `ProtectionView` derived from Backup-owned protection evaluation;
 - an allowlisted operation set limited to protection-state reads, pre-change/pre-migration checkpoint requests, and restore coordination;
-- fail-closed rejection of operations outside that allowlist, including destructive repository/recovery authority;
+- fail-closed rejection of operations outside that allowlist, including destructive repository/recovery authority and mapping administration;
 - bounded `pre_change` and `pre_migration` checkpoint request purposes;
 - an opaque authorization-decision reference that is explicitly not treated as proof of authorization;
+- `CheckpointService` ordering that structurally validates, authorizes, resolves Backup-owned scope mapping, and only then reaches the Backup-owned executor;
+- authorization-before-mapping behavior so denied callers cannot use the service to probe Backup scope existence;
+- `DatasetScopeMapping` and `DatasetScopeResolver` contracts that prevent Sync from supplying or selecting `BackupScopeID` directly;
+- Backup-owned mapping revisions and active-state validation bound into the authorized checkpoint request;
+- `FileDatasetScopeStore`, a versioned durable local mapping store with an explicitly caller-supplied path, bounded mapping count, duplicate-dataset rejection, strict JSON parsing, defensive input snapshotting, private temporary-file publication, same-directory atomic rename, private Unix permission checks, and fail-closed handling of uninitialized, malformed, unsupported, non-regular, or loosely permissioned store state;
+- checkpoint receipts bound to the exact request, Sync dataset, and resolved Backup scope;
+- `CheckpointStatus` lifecycle states for `accepted`, `running`, `failed`, and `completed` without equating submission or engine completion with recoverability;
+- bounded checkpoint failure categories rather than raw engine/repository/path/credential errors;
+- recovery-readiness predicates requiring a completed, usable, integrity-verified recovery point;
+- `ValidateForSubmission` and `ReadyForSubmission` binding recovery evidence to the exact accepted request, operation, dataset, and Backup scope;
+- a `CheckpointStatusProvider` seam for future Backup-owned authoritative runtime checkpoint evidence without treating an operation ID as a credential;
 - conservative restore coordination for Sync-managed datasets requiring staging, pause-or-maintenance coordination, restored-data validation, and post-restore Sync reconciliation;
 - no direct-write permission into a Sync-managed production path from this source-level contract;
 - degraded coordination behavior that preserves controlled staged recovery when Sync is unavailable or its state is unknown;
-- automated unit tests for authority separation, bounded state projection, checkpoint validation, restore coordination, identifier bounds, and Sync-unavailable behavior;
+- automated unit tests for authority separation, bounded state projection, checkpoint validation, authorization ordering, Backup-owned scope resolution, durable mapping-store behavior, checkpoint lifecycle/recovery evidence, receipt/status binding, restore coordination, identifier bounds, and Sync-unavailable behavior;
 - focused GoreeCloud Protection CI coverage for both `internal/goreecloud/protection` and `internal/goreecloud/syncintegration`.
 
-This is a source-level contract foundation only. Authenticated transport, GoreeCloud Identity decision verification, GoreeCloud Mesh delivery, runtime checkpoint execution, Sync pause/maintenance orchestration, restore staging/promotion, post-restore reconciliation, audit integration, user interfaces, and target-environment acceptance remain incomplete. See [`docs/goreecloud-sync-integration.md`](docs/goreecloud-sync-integration.md).
+This remains a source-level integration foundation. Authenticated transport, concrete GoreeCloud Identity decision verification, GoreeCloud Mesh delivery, runtime configuration and authorized administration of the durable mapping store, a real Backup checkpoint executor, a real checkpoint-status provider backed by authoritative recovery evidence, Sync pause/maintenance orchestration, restore staging/promotion, post-restore reconciliation, audit integration, user interfaces, target-environment testing, and production acceptance remain incomplete. See [`docs/goreecloud-sync-integration.md`](docs/goreecloud-sync-integration.md).
 
 ## Experimental or partial features
 
@@ -145,7 +156,7 @@ The recovery-evidence types and validation contract exist in source. Durable pri
 
 ### GoreeCloud Backup ↔ GoreeCloud Sync runtime integration
 
-The source-level authority and restore-safety contract now exists, but no production service-to-service transport or runtime orchestration uses it yet. The implementation must still authenticate and authorize cross-product requests, map Sync datasets to Backup scopes durably, execute and verify requested checkpoints, coordinate Sync maintenance state, stage and validate restores, promote recovered data deliberately, reconcile Sync state afterward, and prove failure behavior when either product is unavailable.
+The source-level authority, authorization-ordering, durable dataset-scope mapping-store foundation, checkpoint lifecycle-evidence model, and restore-safety contract now exist, but no production service-to-service transport or runtime orchestration uses them yet. The implementation must still authenticate and authorize cross-product requests with concrete platform adapters, select and protect the canonical mapping-store location, provide authorized mapping administration and audit, execute requested checkpoints through a real Backup engine adapter, collect authoritative checkpoint completion/integrity evidence, coordinate Sync maintenance state, stage and validate restores, promote recovered data deliberately, reconcile Sync state afterward, and prove failure behavior when either product is unavailable.
 
 ### Canonical visual identity
 
