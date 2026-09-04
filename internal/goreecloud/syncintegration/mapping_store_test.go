@@ -93,14 +93,13 @@ func TestFileDatasetScopeStoreRejectsMalformedOrUntrustedFileState(t *testing.T)
 		name    string
 		content string
 	}{
-		{name: "unknown field", content: `{"version":1,"mappings":[],"extra":true}`},
-		{name: "trailing value", content: `{"version":1,"mappings":[]} {}`},
-		{name: "unsupported version", content: `{"version":2,"mappings":[]}`},
+		{name: "unknown field", content: "{\"version\":1,\"mappings\":[],\"extra\":true}"},
+		{name: "trailing value", content: "{\"version\":1,\"mappings\":[]} {}"},
+		{name: "unsupported version", content: "{\"version\":2,\"mappings\":[]}"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newTestDatasetScopeStore(t)
-			content := strings.ReplaceAll(tc.content, `\"`, `"`)
-			if err := os.WriteFile(store.path, []byte(content), 0o600); err != nil {
+			if err := os.WriteFile(store.path, []byte(tc.content), 0o600); err != nil {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
 			if _, err := store.ResolveBackupScope(context.Background(), "family-documents"); err == nil {
@@ -115,7 +114,7 @@ func TestFileDatasetScopeStoreRejectsLooseUnixPermissions(t *testing.T) {
 		t.Skip("Unix permission semantics do not apply on Windows")
 	}
 	store := newTestDatasetScopeStore(t)
-	payload := strings.ReplaceAll(`{"version":1,"mappings":[]}`, `\"`, `"`)
+	payload := "{\"version\":1,\"mappings\":[]}"
 	if err := os.WriteFile(store.path, []byte(payload), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
