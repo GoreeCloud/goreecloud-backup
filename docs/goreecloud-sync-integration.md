@@ -2,7 +2,7 @@
 
 ## Status
 
-**Development status:** Source-level authority, authorization-ordering, Backup-owned dataset-scope mapping, checkpoint lifecycle-evidence, and restore-safety contracts are implemented on the GoreeCloud Backup development branch.
+**Development status:** Source-level authority, authorization-ordering, Backup-owned dataset-scope mapping with a durable local store, checkpoint lifecycle-evidence, and restore-safety contracts are implemented on the GoreeCloud Backup development branch.
 
 **Production status:** Not implemented or accepted for production use.
 
@@ -24,7 +24,7 @@ The Backup-to-Sync contract therefore exposes only three product-layer operation
 2. Request a pre-change or pre-migration checkpoint through an authorization-gated Backup service boundary.
 3. Coordinate the safety boundary around a restore that targets a Sync-managed dataset.
 
-The contract does not expose authority to delete recovery points, delete repositories, change retention, rotate encryption material, run repository maintenance, disable protection, or perform general synchronization.
+The contract does not expose authority to delete recovery points, delete repositories, change retention, rotate encryption material, run repository maintenance, disable protection, administer dataset-to-scope mappings, or perform general synchronization.
 
 ## Source package
 
@@ -78,13 +78,27 @@ Authorization errors, denials, mismatched decision references, mapping lookup fa
 
 ## Backup-owned dataset-to-scope mapping
 
-`DatasetScopeMapping` establishes the source contract for mapping one opaque GoreeCloud Sync dataset ID to a Backup-owned protection scope ID. It also carries a Backup-owned mapping revision, active state, and update time.
+`DatasetScopeMapping` maps one opaque GoreeCloud Sync dataset ID to a Backup-owned protection scope ID. It also carries a Backup-owned mapping revision, active state, and update time.
 
 The mapping intentionally carries no filesystem path, protected content, credentials, repository location, encryption material, or Sync policy state.
 
 GoreeCloud Sync does not submit `BackupScopeID`. The Backup integration resolves that value through `DatasetScopeResolver` only after the checkpoint request has passed authorization. This prevents Sync from selecting or escalating into a broader Backup scope by changing a request field.
 
-The current code defines and validates the mapping contract and resolver seam. A concrete authoritative durable mapping store, migration/versioning behavior, administrator workflow, and runtime configuration path are still incomplete and must not be represented as implemented.
+The source now includes `FileDatasetScopeStore`, a Backup-owned durable implementation of `DatasetScopeResolver`. Its storage path must be supplied explicitly by the Backup runtime or administrative configuration; the integration package does not invent a production location. The store:
+
+- uses a versioned JSON envelope;
+- accepts at most a bounded number of mappings;
+- validates every mapping before publication;
+- rejects duplicate Sync dataset IDs;
+- snapshots caller-provided mapping data before validation/encoding;
+- publishes through a private temporary file and same-directory atomic rename;
+- uses private file permissions and rejects group/other-readable mapping files on Unix-like systems;
+- rejects non-regular files, unknown JSON fields, trailing JSON values, unsupported store versions, and malformed mappings; and
+- distinguishes an uninitialized store from an initialized store that lacks a requested mapping.
+
+`ReplaceMappings` is a Backup administration primitive and is not part of the Backup-to-Sync operation allowlist. The current source does not expose any Sync operation that can create, replace, activate, or deactivate these mappings.
+
+A runtime-selected canonical storage location, mapping administration API/UX, authorization for mapping administration, audit history, migration policy for future store versions, deployment integration, and production acceptance are still incomplete.
 
 ## Checkpoint lifecycle and recovery evidence
 
@@ -99,7 +113,7 @@ The current code defines and validates the mapping contract and resolver seam. A
 
 Accepted and running states are prohibited from claiming a recovery point, integrity verification, restore verification, or failure evidence. Failed status must use a bounded failure category and cannot claim a usable recovery point. Completed status must identify a recovery point, but completion by itself is still not sufficient for a protected-change decision.
 
-`ReadyForProtectedChange()` returns true only when the status is structurally valid, the operation is completed, Backup reports the recovery point as usable, and integrity verification has passed. Restore verification is stronger evidence and is represented separately; it is not automatically required for every individual pre-change checkpoint because a controlling runtime policy may impose a stronger requirement for a particular change.
+`ReadyForProtectedChange()` returns true only when the status is structurally valid, the operation is completed, Backup reports the recovery point as usable, and integrity verification has passed. `ReadyForSubmission()` additionally requires that the status is bound to the exact accepted submission before returning true, and is the safer helper for a concrete pre-change or pre-migration decision. Restore verification is stronger evidence and is represented separately; it is not automatically required for every individual pre-change checkpoint because a controlling runtime policy may impose a stronger requirement for a particular change.
 
 Cross-product failure evidence is deliberately limited to bounded categories rather than raw repository, path, credential, backend, or protected-content errors.
 
@@ -138,7 +152,7 @@ It provides an authorization-gated service seam for checkpoint submission, but n
 
 No caller-supplied field is treated as proof of permission by itself. A future concrete `CheckpointAuthorizer` must verify the external decision rather than echoing the caller's reference.
 
-Backup repository credentials and destructive backup authority must remain separately protected. Access to a synchronized dataset must not automatically grant authority to erase its independent recovery history.
+Backup repository credentials and destructive backup authority must remain separately protected. Access to a synchronized dataset must not automatically grant authority to erase its independent recovery history or administer its Backup scope mapping.
 
 ## Validation expectations
 
@@ -153,10 +167,13 @@ The repository includes focused unit tests intended to prove that:
 - denied or failed authorization cannot be used to probe dataset-to-scope mappings through `CheckpointService`;
 - Sync cannot supply a Backup protection scope to the executor;
 - missing, inactive, malformed, or mismatched dataset mappings prevent execution;
+- durable mapping replacement is atomic at the file-publication boundary and invalid replacements do not replace prior valid state;
+- durable mapping files fail closed for malformed structure, unsupported versions, loose Unix permissions, and uninitialized state;
 - executor receipts must match the exact request, dataset, and resolved Backup scope;
 - a checkpoint submission alone never becomes recovery-ready evidence;
 - lifecycle evidence rejects contradictory states and binds to the exact accepted submission;
 - only a completed, usable, integrity-verified recovery point satisfies the source-level protected-change predicate;
+- submission-bound readiness rejects evidence from another checkpoint;
 - Sync-managed restores require staging and reconciliation safeguards;
 - loss of Sync availability does not eliminate access to controlled staged recovery; and
 - non-Sync-managed restores do not become dependent on Sync.
@@ -172,7 +189,7 @@ The following remain intentionally incomplete:
 - GoreeCloud Mesh discovery, event, or evidence transport;
 - Wardveil Security acceptance for the runtime integration;
 - Privacy Shield acceptance for runtime metadata and data flows;
-- authoritative durable storage and administration for Sync-dataset-to-Backup-scope mappings;
+- runtime configuration, administration, authorization, audit, and migration lifecycle for the durable dataset-to-scope store;
 - a concrete Backup checkpoint executor;
 - an authoritative runtime checkpoint-status provider connected to real recovery-point and integrity evidence;
 - Sync pause or maintenance orchestration;
@@ -184,4 +201,4 @@ The following remain intentionally incomplete:
 - failure-mode testing with one product unavailable; and
 - production and Stable acceptance.
 
-Until those items are implemented and verified, this integration must be represented as a source-level contract, authorization-ordering, scope-mapping, lifecycle-evidence, and restore-safety foundation only.
+Until those items are implemented and verified, this integration must be represented as a source-level contract, authorization-ordering, durable mapping-store, lifecycle-evidence, and restore-safety foundation only.
