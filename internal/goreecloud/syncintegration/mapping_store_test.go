@@ -99,7 +99,8 @@ func TestFileDatasetScopeStoreRejectsMalformedOrUntrustedFileState(t *testing.T)
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newTestDatasetScopeStore(t)
-			if err := os.WriteFile(store.path, []byte(tc.content), 0o600); err != nil {
+			content := strings.ReplaceAll(tc.content, `\"`, `"`)
+			if err := os.WriteFile(store.path, []byte(content), 0o600); err != nil {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
 			if _, err := store.ResolveBackupScope(context.Background(), "family-documents"); err == nil {
@@ -114,7 +115,7 @@ func TestFileDatasetScopeStoreRejectsLooseUnixPermissions(t *testing.T) {
 		t.Skip("Unix permission semantics do not apply on Windows")
 	}
 	store := newTestDatasetScopeStore(t)
-	payload := `{"version":1,"mappings":[]}`
+	payload := strings.ReplaceAll(`{"version":1,"mappings":[]}`, `\"`, `"`)
 	if err := os.WriteFile(store.path, []byte(payload), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
