@@ -10,7 +10,7 @@ import (
 // ErrAuthorizationDenied is returned when an authoritative authorization
 // adapter explicitly denies a Backup operation requested through the Sync
 // integration boundary.
-var ErrAuthorizationDenied = errors.New("Backup-to-Sync operation authorization denied")
+var ErrAuthorizationDenied = errors.New("backup-to-sync operation authorization denied")
 
 // AuthorizationDecision is the minimum result that a trusted runtime
 // authorization adapter must return after independently validating the caller,
@@ -65,9 +65,9 @@ type AuthorizedCheckpointRequest struct {
 // verification, restore verification, or proof that a usable recovery point
 // exists.
 type CheckpointSubmission struct {
-	RequestID  string    `json:"requestId"`
+	RequestID   string    `json:"requestId"`
 	OperationID string    `json:"operationId"`
-	AcceptedAt time.Time `json:"acceptedAt"`
+	AcceptedAt  time.Time `json:"acceptedAt"`
 }
 
 func (s CheckpointSubmission) validateForRequest(request AuthorizedCheckpointRequest) error {
