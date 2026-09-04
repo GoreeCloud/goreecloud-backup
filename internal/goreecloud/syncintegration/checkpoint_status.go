@@ -127,6 +127,46 @@ func (s CheckpointStatus) Validate() error {
 	return nil
 }
 
+// ValidateForSubmission binds Backup-owned lifecycle evidence to the exact
+// accepted checkpoint receipt. This prevents a recovery point or status from
+// another request, dataset, or Backup scope from satisfying the checkpoint.
+func (s CheckpointStatus) ValidateForSubmission(submission CheckpointSubmission) error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	if err := validateOpaqueIdentifier("checkpoint submission request ID", submission.RequestID); err != nil {
+		return err
+	}
+	if err := validateOpaqueIdentifier("checkpoint submission operation ID", submission.OperationID); err != nil {
+		return err
+	}
+	if err := validateOpaqueIdentifier("checkpoint submission dataset ID", submission.DatasetID); err != nil {
+		return err
+	}
+	if err := validateOpaqueIdentifier("checkpoint submission Backup scope ID", submission.BackupScopeID); err != nil {
+		return err
+	}
+	if submission.AcceptedAt.IsZero() {
+		return fmt.Errorf("checkpoint submission acceptance time must not be zero")
+	}
+	if s.RequestID != submission.RequestID {
+		return fmt.Errorf("checkpoint status request ID does not match submission")
+	}
+	if s.OperationID != submission.OperationID {
+		return fmt.Errorf("checkpoint status operation ID does not match submission")
+	}
+	if s.DatasetID != submission.DatasetID {
+		return fmt.Errorf("checkpoint status dataset ID does not match submission")
+	}
+	if s.BackupScopeID != submission.BackupScopeID {
+		return fmt.Errorf("checkpoint status Backup scope ID does not match submission")
+	}
+	if s.ObservedAt.Before(submission.AcceptedAt) {
+		return fmt.Errorf("checkpoint status predates checkpoint submission")
+	}
+	return nil
+}
+
 // ReadyForProtectedChange reports whether Backup itself has supplied enough
 // evidence for Sync to treat the requested pre-change/pre-migration checkpoint
 // as usable. Engine completion alone is intentionally insufficient.
@@ -143,7 +183,9 @@ func (s CheckpointStatus) ReadyForProtectedChange() bool {
 
 // CheckpointStatusProvider is the Backup-owned runtime seam for authoritative
 // checkpoint lifecycle/recovery evidence. The provider, not Sync, determines
-// whether a recovery point exists and is usable.
+// whether a recovery point exists and is usable. Calling the provider remains
+// subject to the separately authenticated and authorized runtime boundary; a
+// CheckpointSubmission is correlation evidence, not a bearer credential.
 type CheckpointStatusProvider interface {
 	CheckpointStatus(context.Context, string) (CheckpointStatus, error)
 }
