@@ -68,13 +68,15 @@ func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := validateDatasetScopeMappings(mappings); err != nil {
+
+	snapshot := append([]DatasetScopeMapping(nil), mappings...)
+	if err := validateDatasetScopeMappings(snapshot); err != nil {
 		return err
 	}
 
 	payload, err := json.MarshalIndent(datasetScopeStoreFile{
 		Version:  datasetScopeStoreVersion,
-		Mappings: mappings,
+		Mappings: snapshot,
 	}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode dataset-scope mappings: %w", err)
