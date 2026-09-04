@@ -105,6 +105,24 @@ The branch contains a GoreeCloud-owned product-layer package at `internal/goreec
 
 This is currently a source-level domain foundation. It is not yet persisted, exposed through a stable product API, connected to the UI, administered through a complete policy workflow, or fed by production backup/repository/monitoring systems.
 
+### GoreeCloud Backup ↔ GoreeCloud Sync contract foundation
+
+The branch contains a GoreeCloud-owned source contract at `internal/goreecloud/syncintegration` that implements a deliberately narrow integration boundary:
+
+- a versioned pre-stabilization contract identifier;
+- a bounded read-only `ProtectionView` derived from Backup-owned protection evaluation;
+- an allowlisted operation set limited to protection-state reads, pre-change/pre-migration checkpoint requests, and restore coordination;
+- fail-closed rejection of operations outside that allowlist, including destructive repository/recovery authority;
+- bounded `pre_change` and `pre_migration` checkpoint request purposes;
+- an opaque authorization-decision reference that is explicitly not treated as proof of authorization;
+- conservative restore coordination for Sync-managed datasets requiring staging, pause-or-maintenance coordination, restored-data validation, and post-restore Sync reconciliation;
+- no direct-write permission into a Sync-managed production path from this source-level contract;
+- degraded coordination behavior that preserves controlled staged recovery when Sync is unavailable or its state is unknown;
+- automated unit tests for authority separation, bounded state projection, checkpoint validation, restore coordination, identifier bounds, and Sync-unavailable behavior;
+- focused GoreeCloud Protection CI coverage for both `internal/goreecloud/protection` and `internal/goreecloud/syncintegration`.
+
+This is a source-level contract foundation only. Authenticated transport, GoreeCloud Identity decision verification, GoreeCloud Mesh delivery, runtime checkpoint execution, Sync pause/maintenance orchestration, restore staging/promotion, post-restore reconciliation, audit integration, user interfaces, and target-environment acceptance remain incomplete. See [`docs/goreecloud-sync-integration.md`](docs/goreecloud-sync-integration.md).
+
 ## Experimental or partial features
 
 ### GoreeCloud-owned frontend transition
@@ -124,6 +142,10 @@ Policy administration is still incomplete. Durable policy storage, configuration
 ### Recovery-evidence persistence and query
 
 The recovery-evidence types and validation contract exist in source. Durable privacy-conscious storage, retention, querying, audit behavior, migration, API exposure, and administrator workflows remain to be implemented.
+
+### GoreeCloud Backup ↔ GoreeCloud Sync runtime integration
+
+The source-level authority and restore-safety contract now exists, but no production service-to-service transport or runtime orchestration uses it yet. The implementation must still authenticate and authorize cross-product requests, map Sync datasets to Backup scopes durably, execute and verify requested checkpoints, coordinate Sync maintenance state, stage and validate restores, promote recovered data deliberately, reconcile Sync state afterward, and prove failure behavior when either product is unavailable.
 
 ### Canonical visual identity
 
