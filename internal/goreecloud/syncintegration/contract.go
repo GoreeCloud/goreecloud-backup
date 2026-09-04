@@ -211,14 +211,14 @@ const (
 // RestoreCoordination is a safety plan for the Sync boundary. It is not a
 // restore authorization or a restore execution result.
 type RestoreCoordination struct {
-	ContractVersion    string              `json:"contractVersion"`
-	DatasetID          string              `json:"datasetId"`
-	SyncManaged        bool                `json:"syncManaged"`
-	SyncAvailability   SyncAvailability    `json:"syncAvailability"`
+	ContractVersion    string               `json:"contractVersion"`
+	DatasetID          string               `json:"datasetId"`
+	SyncManaged        bool                 `json:"syncManaged"`
+	SyncAvailability   SyncAvailability     `json:"syncAvailability"`
 	RequiredActions    []CoordinationAction `json:"requiredActions,omitempty"`
-	StagingRequired    bool                `json:"stagingRequired"`
-	DirectWriteAllowed bool                `json:"directWriteAllowed"`
-	Reconciliation     ReconciliationState `json:"reconciliation"`
+	StagingRequired    bool                 `json:"stagingRequired"`
+	DirectWriteAllowed bool                 `json:"directWriteAllowed"`
+	Reconciliation     ReconciliationState  `json:"reconciliation"`
 }
 
 // PlanRestoreCoordination derives the safe Sync-boundary requirements for a
