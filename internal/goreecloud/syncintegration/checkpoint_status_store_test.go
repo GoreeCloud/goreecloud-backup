@@ -20,7 +20,7 @@ func newTestCheckpointStatusStore(t *testing.T) *FileCheckpointStatusStore {
 	return store
 }
 
-func validCheckpointSubmission() CheckpointSubmission {
+func validStoredCheckpointSubmission() CheckpointSubmission {
 	return CheckpointSubmission{
 		RequestID:     "request-123",
 		OperationID:   "backup-operation-789",
@@ -54,7 +54,7 @@ func TestFileCheckpointStatusStoreDistinguishesUninitializedAndMissingOperation(
 		t.Fatalf("CheckpointStatus() error = %v, want ErrCheckpointStatusStoreNotInitialized", err)
 	}
 
-	submission := validCheckpointSubmission()
+	submission := validStoredCheckpointSubmission()
 	if err := store.RecordSubmission(context.Background(), submission); err != nil {
 		t.Fatalf("RecordSubmission() error = %v", err)
 	}
@@ -65,7 +65,7 @@ func TestFileCheckpointStatusStoreDistinguishesUninitializedAndMissingOperation(
 
 func TestFileCheckpointStatusStoreRecordsAcceptedSubmissionAndStrengthenedRecoveryEvidence(t *testing.T) {
 	store := newTestCheckpointStatusStore(t)
-	submission := validCheckpointSubmission()
+	submission := validStoredCheckpointSubmission()
 	if err := store.RecordSubmission(context.Background(), submission); err != nil {
 		t.Fatalf("RecordSubmission() error = %v", err)
 	}
@@ -133,7 +133,7 @@ func TestFileCheckpointStatusStoreRecordsAcceptedSubmissionAndStrengthenedRecove
 
 func TestFileCheckpointStatusStoreRejectsRebindingStaleObservationsAndLifecycleRegression(t *testing.T) {
 	store := newTestCheckpointStatusStore(t)
-	submission := validCheckpointSubmission()
+	submission := validStoredCheckpointSubmission()
 	if err := store.RecordSubmission(context.Background(), submission); err != nil {
 		t.Fatalf("RecordSubmission() error = %v", err)
 	}
@@ -182,7 +182,7 @@ func TestFileCheckpointStatusStoreRejectsRebindingStaleObservationsAndLifecycleR
 
 func TestFileCheckpointStatusStoreAllowsCompletedCheckpointToBecomeExplicitlyFailed(t *testing.T) {
 	store := newTestCheckpointStatusStore(t)
-	submission := validCheckpointSubmission()
+	submission := validStoredCheckpointSubmission()
 	if err := store.RecordSubmission(context.Background(), submission); err != nil {
 		t.Fatalf("RecordSubmission() error = %v", err)
 	}
@@ -211,7 +211,7 @@ func TestFileCheckpointStatusStoreAllowsCompletedCheckpointToBecomeExplicitlyFai
 
 func TestFileCheckpointStatusStoreRejectsConflictingSubmission(t *testing.T) {
 	store := newTestCheckpointStatusStore(t)
-	submission := validCheckpointSubmission()
+	submission := validStoredCheckpointSubmission()
 	if err := store.RecordSubmission(context.Background(), submission); err != nil {
 		t.Fatalf("RecordSubmission() error = %v", err)
 	}
@@ -260,7 +260,7 @@ func TestFileCheckpointStatusStoreRejectsLooseUnixPermissions(t *testing.T) {
 
 func TestFileCheckpointStatusStoreRejectsNilOrCancelledContext(t *testing.T) {
 	store := newTestCheckpointStatusStore(t)
-	submission := validCheckpointSubmission()
+	submission := validStoredCheckpointSubmission()
 	if err := store.RecordSubmission(nil, submission); err == nil {
 		t.Fatal("RecordSubmission() accepted nil context")
 	}
