@@ -2,7 +2,7 @@
 
 ## Status
 
-**Development status:** Source-level authority, authorization-ordering, Backup-owned dataset-scope mapping with a durable local store, checkpoint lifecycle-evidence, and restore-safety contracts are implemented on the GoreeCloud Backup development branch.
+**Development status:** Source-level authority, authorization-ordering, Backup-owned dataset-scope mapping with a durable local store, durable checkpoint lifecycle/recovery-evidence storage, and restore-safety contracts are implemented on the GoreeCloud Backup development branch.
 
 **Production status:** Not implemented or accepted for production use.
 
@@ -119,7 +119,33 @@ Cross-product failure evidence is deliberately limited to bounded categories rat
 
 `ValidateForSubmission` binds lifecycle evidence to the exact request ID, operation ID, dataset ID, and Backup scope ID in the accepted submission and rejects status observations that predate acceptance. This prevents evidence from a different checkpoint or protection scope from satisfying the request.
 
-`CheckpointStatusProvider` is only a Backup-owned source seam for future authoritative runtime evidence. A submission or operation ID is correlation data, not a bearer credential; authenticated and authorized runtime access to status remains required.
+`CheckpointStatusProvider` is only a Backup-owned source seam for authoritative runtime evidence. A submission or operation ID is correlation data, not a bearer credential; authenticated and authorized runtime access to status remains required.
+
+### Durable checkpoint lifecycle/evidence store
+
+The source now includes `FileCheckpointStatusStore`, a Backup-owned durable implementation of `CheckpointStatusProvider`. Its path is explicitly supplied by Backup runtime or administrative configuration; the integration package does not select a production location and does not expose a Sync mutation operation for this store.
+
+Each checkpoint operation is initialized from one accepted `CheckpointSubmission`. The store persists that immutable correlation record together with a bounded chronological history of validated `CheckpointStatus` observations. It:
+
+- uses a versioned JSON envelope;
+- limits the number of operations and observations retained in one store file;
+- records the accepted submission as the first lifecycle observation;
+- treats exact submission and latest-status replays as idempotent;
+- rejects a different submission for an already recorded operation;
+- rejects duplicate operation IDs and duplicate request IDs in durable state;
+- requires every later status to remain bound to the exact request, operation, Sync dataset, and Backup scope;
+- requires observation time to advance;
+- prevents lifecycle regressions back to `accepted` or `running` after later states;
+- permits completed recovery evidence to strengthen without changing the recovery-point ID or discarding previously established usable, integrity, or restore-verification evidence;
+- permits an explicit later failure observation after completion so a subsequently discovered verification or repository failure cannot remain represented as recovery-ready;
+- treats a failed operation as terminal so a distinct retry requires a new operation ID;
+- validates the complete persisted history every time it is loaded or rewritten;
+- publishes through the same private atomic-file boundary used by the Backup-owned mapping store; and
+- rejects malformed JSON, unknown fields, trailing JSON values, unsupported versions, non-regular files, loose Unix permissions, invalid histories, and uninitialized state.
+
+`CheckpointStatus()` returns only the latest validated Backup-owned observation for an operation while the durable record retains the earlier lifecycle observations. A stored `accepted` or merely `completed` status still does not satisfy `ReadyForSubmission()` without a usable integrity-verified recovery point.
+
+This store is a source-level persistence foundation, not a production engine observer. The current `CheckpointService` does not silently turn executor acceptance into durable recovery evidence, and no real Backup engine or repository adapter currently writes authoritative completion/integrity observations into this store. Runtime wiring must handle accepted-execution/persistence failure and retry semantics without creating duplicate backup work before production use.
 
 ## Restore safety for Sync-managed paths
 
@@ -172,6 +198,9 @@ The repository includes focused unit tests intended to prove that:
 - executor receipts must match the exact request, dataset, and resolved Backup scope;
 - a checkpoint submission alone never becomes recovery-ready evidence;
 - lifecycle evidence rejects contradictory states and binds to the exact accepted submission;
+- the durable checkpoint store distinguishes uninitialized and missing-operation state, persists the accepted submission, preserves validated chronological evidence, and treats exact replays idempotently;
+- the durable checkpoint store rejects rebinding, stale observations, lifecycle regressions, weakened completed evidence, malformed store state, and loose Unix permissions;
+- an explicitly failed checkpoint does not become ready and cannot be silently rewritten as a successful retry under the same operation ID;
 - only a completed, usable, integrity-verified recovery point satisfies the source-level protected-change predicate;
 - submission-bound readiness rejects evidence from another checkpoint;
 - Sync-managed restores require staging and reconciliation safeguards;
@@ -190,15 +219,17 @@ The following remain intentionally incomplete:
 - Wardveil Security acceptance for the runtime integration;
 - Privacy Shield acceptance for runtime metadata and data flows;
 - runtime configuration, administration, authorization, audit, and migration lifecycle for the durable dataset-to-scope store;
+- runtime-selected canonical location, retention/migration policy, and authorized administration for the durable checkpoint status store;
 - a concrete Backup checkpoint executor;
-- an authoritative runtime checkpoint-status provider connected to real recovery-point and integrity evidence;
+- runtime wiring that durably records accepted submissions without creating duplicate checkpoint work on persistence/retry failures;
+- an authoritative engine/repository evidence adapter that records real checkpoint completion, recovery-point usability, integrity, and applicable restore evidence;
 - Sync pause or maintenance orchestration;
 - restore staging and promotion implementation;
 - post-restore reconciliation execution;
-- audit history for cross-product operations;
+- audit integration for cross-product operations;
 - UI integration in Backup and Sync;
 - target-environment restore testing;
 - failure-mode testing with one product unavailable; and
 - production and Stable acceptance.
 
-Until those items are implemented and verified, this integration must be represented as a source-level contract, authorization-ordering, durable mapping-store, lifecycle-evidence, and restore-safety foundation only.
+Until those items are implemented and verified, this integration must be represented as a source-level contract, authorization-ordering, durable mapping-store, durable checkpoint-evidence-store, and restore-safety foundation only.
