@@ -1,0 +1,71 @@
+name: GoreeCloud UI
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'internal/server/**'
+      - 'app/public/**'
+      - 'app/assets/**'
+      - 'branding/**'
+      - 'docs/goreecloud/GLAZE_UI_CONFORMANCE.md'
+      - 'docs/goreecloud/ICON_ASSETS.md'
+      - 'scripts/validate_goreecloud_ui.py'
+      - 'scripts/validate_goreecloud_icon_assets.py'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/goreecloud-ui.yml'
+  push:
+    branches: [ master, 'agent/**' ]
+    paths:
+      - 'internal/server/**'
+      - 'app/public/**'
+      - 'app/assets/**'
+      - 'branding/**'
+      - 'docs/goreecloud/GLAZE_UI_CONFORMANCE.md'
+      - 'docs/goreecloud/ICON_ASSETS.md'
+      - 'scripts/validate_goreecloud_ui.py'
+      - 'scripts/validate_goreecloud_icon_assets.py'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/goreecloud-ui.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  overlay-tests:
+    name: GoreeCloud presentation overlay
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: true
+
+      - name: Verify module graph
+        run: go mod verify
+
+      - name: Verify GoreeCloud Go formatting
+        run: |
+          go run github.com/kopia/kopia/tools/gettool --tool linter:2.6.1 --output-dir tools/.tools/golangci-lint-2.6.1
+          tools/.tools/golangci-lint-2.6.1/golangci-lint fmt internal/server/htmlui_goreecloud.go internal/server/htmlui_goreecloud_test.go
+          git diff --exit-code -- internal/server/htmlui_goreecloud.go internal/server/htmlui_goreecloud_test.go
+
+      - name: Validate Glaze UI source contract
+        run: python3 scripts/validate_goreecloud_ui.py
+
+      - name: Validate GoreeCloud Backup branding and icon contract
+        run: python3 scripts/validate_goreecloud_icon_assets.py
+
+      - name: Test server package
+        run: go test ./internal/server/...

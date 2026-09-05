@@ -42,7 +42,7 @@ import crypto from "crypto";
 // Store to save parameters
 const store = new Store();
 
-app.name = "KopiaUI";
+app.name = "GoreeCloud Backup";
 
 let tray = null;
 let repositoryWindows = {};
@@ -85,6 +85,44 @@ function getDisplayConfiguration() {
   return { hash: sha256.digest("hex"), factorsEqual: isFactorEqual };
 }
 
+function repositoryIDForSender(sender) {
+  const repositoryID = repoIDForWebContents[sender.id];
+  const repositoryWindow = repositoryWindows[repositoryID];
+
+  if (!repositoryID || !repositoryWindow) {
+    return null;
+  }
+
+  if (repositoryWindow.webContents.id !== sender.id) {
+    return null;
+  }
+
+  return repositoryID;
+}
+
+function requireTrustedRepositorySender(event) {
+  const repositoryID = repositoryIDForSender(event.sender);
+  if (!repositoryID) {
+    throw new Error("untrusted repository renderer");
+  }
+
+  return repositoryID;
+}
+
+function openExternalHTTPS(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") {
+      log.warn("blocked non-HTTPS external navigation");
+      return;
+    }
+
+    void shell.openExternal(parsed.toString());
+  } catch (error) {
+    log.warn("blocked invalid external navigation", error);
+  }
+}
+
 /**
  * Creates a repository window with given options and parameters
  * @param {*} repositoryID
@@ -98,7 +136,7 @@ function showRepoWindow(repositoryID) {
   }
 
   let windowOptions = {
-    title: "KopiaUI is Loading...",
+    title: "GoreeCloud Backup is Loading...",
     // default width
     width: 1000,
     // default height
@@ -112,6 +150,10 @@ function showRepoWindow(repositoryID) {
     show: false,
     webPreferences: {
       preload: path.join(publicPath(), "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
     },
   };
 
@@ -133,6 +175,28 @@ function showRepoWindow(repositoryID) {
   const webContentsID = repositoryWindow.webContents.id;
   repositoryWindows[repositoryID] = repositoryWindow;
   repoIDForWebContents[webContentsID] = repositoryID;
+
+  const repositoryServerOrigin = new URL(
+    serverForRepo(repositoryID).getServerAddress(),
+  ).origin;
+
+  repositoryWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalHTTPS(url);
+    return { action: "deny" };
+  });
+
+  repositoryWindow.webContents.on("will-navigate", (event, url) => {
+    try {
+      if (new URL(url).origin === repositoryServerOrigin) {
+        return;
+      }
+    } catch (error) {
+      log.warn("blocked invalid renderer navigation", error);
+    }
+
+    event.preventDefault();
+    openExternalHTTPS(url);
+  });
 
   // Failed to load the content, retry
   repositoryWindow.webContents.on("did-fail-load", () => {
@@ -177,7 +241,7 @@ function showRepoWindow(repositoryID) {
    * Delete references to the repository window
    */
   repositoryWindow.on("closed", function () {
-    // Delete the reference to the window
+    // Delete the reference to the repository window
     repositoryWindow = null;
     delete repositoryWindows[repositoryID];
     delete repoIDForWebContents[webContentsID];
@@ -213,7 +277,10 @@ app.on("will-quit", function () {
 });
 
 app.on("login", (event, webContents, _request, _authInfo, callback) => {
-  const repositoryID = repoIDForWebContents[webContents.id];
+  const repositoryID = repositoryIDForSender(webContents);
+  if (!repositoryID) {
+    return;
+  }
 
   // intercept password prompts and automatically enter password that the server has printed for us.
   const password = serverForRepo(repositoryID).getServerPassword();
@@ -227,7 +294,12 @@ app.on("login", (event, webContents, _request, _authInfo, callback) => {
 app.on(
   "certificate-error",
   (event, webContents, _url, _error, certificate, callback) => {
-    const repositoryID = repoIDForWebContents[webContents.id];
+    const repositoryID = repositoryIDForSender(webContents);
+    if (!repositoryID) {
+      callback(false);
+      return;
+    }
+
     // intercept certificate errors and automatically trust the certificate the server has printed for us.
     const expected =
       "sha256/" +
@@ -245,7 +317,8 @@ app.on(
       return;
     }
 
-    log.warn("certificate error:", certificate.fingerprint, expected);
+    log.warn("certificate error for repository window");
+    callback(false);
   },
 );
 
@@ -254,7 +327,9 @@ app.on(
  */
 app.on("window-all-closed", function () {});
 
-ipcMain.handle("select-dir", async (_event, _arg) => {
+ipcMain.handle("select-dir", async (event, _arg) => {
+  requireTrustedRepositorySender(event);
+
   const result = await dialog.showOpenDialog({
     properties: ["openDirectory"],
   });
@@ -266,8 +341,18 @@ ipcMain.handle("select-dir", async (_event, _arg) => {
   }
 });
 
-ipcMain.handle("browse-dir", async (_event, path) => {
-  shell.openPath(path);
+ipcMain.handle("browse-dir", async (event, directoryPath) => {
+  requireTrustedRepositorySender(event);
+
+  if (
+    typeof directoryPath !== "string" ||
+    directoryPath.length === 0 ||
+    directoryPath.includes("\0")
+  ) {
+    throw new TypeError("invalid directory path");
+  }
+
+  return shell.openPath(directoryPath);
 });
 
 ipcMain.on("server-status-updated", updateTrayContextMenu);
@@ -302,7 +387,7 @@ autoUpdater.on("update-available", (a) => {
       .showMessageBox({
         buttons: ["Yes", "No"],
         message:
-          "An updated KopiaUI v" +
+          "An updated GoreeCloud Backup v" +
           a.version +
           " is available.\n\nDo you want to install it now?",
       })
@@ -318,7 +403,7 @@ autoUpdater.on("update-available", (a) => {
     lastNotifiedVersion = a.version;
 
     const notification = new Notification({
-      title: "New version of KopiaUI",
+      title: "New version of GoreeCloud Backup",
       body:
         "Version v" +
         a.version +
@@ -409,12 +494,14 @@ function installUpdate() {
 function viewReleaseNotes() {
   const ver = updateAvailableInfo.version + "";
   if (ver.match(/^\d{8}\./)) {
-    // kopia-test builds are named yyyymmdd.0.hhmmss
-    shell.openExternal(
+    // Inherited Kopia test builds are named yyyymmdd.0.hhmmss.
+    openExternalHTTPS(
       "https://github.com/kopia/kopia-test-builds/releases/v" + ver,
     );
   } else {
-    shell.openExternal("https://github.com/kopia/kopia/releases/v" + ver);
+    openExternalHTTPS(
+      "https://github.com/GoreeCloud/goreecloud-backup/releases/tag/v" + ver,
+    );
   }
 }
 
@@ -440,7 +527,7 @@ function maybeMoveToApplicationsFolder() {
     .showMessageBox({
       buttons: ["Yes", "No"],
       message:
-        "For best experience, Kopia needs to be installed in Applications folder.\n\nDo you want to move it now?",
+        "For best experience, GoreeCloud Backup should be installed in the Applications folder.\n\nDo you want to move it now?",
     })
     .then((r) => {
       if (r.response == 0) {
@@ -479,7 +566,9 @@ function safeTrayHandler(ev, h) {
   tray.on(ev, () => {
     try {
       h();
-    } catch (e) {}
+    } catch (e) {
+      log.warn("tray handler failed", e);
+    }
   });
 }
 
@@ -511,7 +600,7 @@ app.on("ready", () => {
     ),
   );
 
-  tray.setToolTip("Kopia");
+  tray.setToolTip("GoreeCloud Backup");
 
   // hooks exposed to tests
   if (process.env["KOPIA_UI_TESTING"]) {
@@ -539,7 +628,7 @@ app.on("ready", () => {
     // on Windows, also show the notification.
     if (process.platform === "win32") {
       tray.displayBalloon({
-        title: "Kopia is running in the background",
+        title: "GoreeCloud Backup is running in the background",
         content: "Click on the system tray icon to open the menu",
       });
     }
@@ -668,7 +757,7 @@ function updateTrayContextMenu() {
     }
   } else {
     autoUpdateMenuItems.push({
-      label: "KopiaUI is up-to-date: " + app.getVersion(),
+      label: "GoreeCloud Backup is up-to-date: " + app.getVersion(),
       enabled: false,
     });
   }

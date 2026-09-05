@@ -204,6 +204,7 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 	if !ok {
 		rc.w.Header().Set("WWW-Authenticate", `Basic realm="Kopia"`)
 		http.Error(rc.w, "Missing credentials.\n", http.StatusUnauthorized)
+		userLog(rc.req.Context()).Warnw("authentication denied", "event", "auth.failed", "reason", "missing_credentials")
 
 		return false
 	}
@@ -219,9 +220,7 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 	if !authn.IsValid(rc.req.Context(), rc.rep, username, password) {
 		rc.w.Header().Set("WWW-Authenticate", `Basic realm="Kopia"`)
 		http.Error(rc.w, "Access denied.\n", http.StatusUnauthorized)
-
-		// Log failed authentication attempt
-		userLog(rc.req.Context()).Warnf("failed login attempt by client %s for user %s", rc.req.RemoteAddr, username)
+		userLog(rc.req.Context()).Warnw("authentication denied", "event", "auth.failed", "reason", "invalid_credentials")
 
 		return false
 	}
@@ -230,18 +229,20 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 
 	ac, err := rc.srv.generateShortTermAuthCookie(username, now)
 	if err != nil {
-		userLog(rc.req.Context()).Errorf("unable to generate short-term auth cookie: %v", err)
+		userLog(rc.req.Context()).Errorw("authentication cookie generation failed", "event", "auth.cookie.error", "err", err)
 	} else {
 		http.SetCookie(rc.w, &http.Cookie{
-			Name:    kopiaAuthCookie,
-			Value:   ac,
-			Expires: now.Add(kopiaAuthCookieTTL),
-			Path:    "/",
+			Name:     kopiaAuthCookie,
+			Value:    ac,
+			Expires:  now.Add(kopiaAuthCookieTTL),
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
 		})
 
 		if s.options.LogRequests {
-			// Log successful authentication
-			userLog(rc.req.Context()).Infof("successful login by client %s for user %s", rc.req.RemoteAddr, username)
+			userLog(rc.req.Context()).Infow("authentication succeeded", "event", "auth.succeeded")
 		}
 	}
 
@@ -249,15 +250,22 @@ func (s *Server) isAuthenticated(rc requestContext) bool {
 }
 
 func (s *Server) isAuthCookieValid(username, cookieValue string) bool {
-	tok, err := jwt.ParseWithClaims(cookieValue, &jwt.RegisteredClaims{}, func(_ *jwt.Token) (any, error) {
-		return s.authCookieSigningKey, nil
-	})
+	tok, err := jwt.ParseWithClaims(
+		cookieValue,
+		&jwt.RegisteredClaims{},
+		func(_ *jwt.Token) (any, error) {
+			return s.authCookieSigningKey, nil
+		},
+		jwt.WithAudience(kopiaAuthCookieAudience),
+		jwt.WithIssuer(kopiaAuthCookieIssuer),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
 	if err != nil {
 		return false
 	}
 
 	sc, ok := tok.Claims.(*jwt.RegisteredClaims)
-	if !ok {
+	if !ok || !tok.Valid {
 		return false
 	}
 
@@ -317,6 +325,8 @@ func (s *Server) requireAuth(checkCSRFToken csrfTokenOption, f func(ctx context.
 		if checkCSRFToken == csrfTokenRequired {
 			if !s.validateCSRFToken(r) {
 				http.Error(w, "Invalid or missing CSRF token.\n", http.StatusUnauthorized)
+				userLog(r.Context()).Warnw("request integrity denied", "event", "request.csrf.denied", "path", r.URL.Path)
+
 				return
 			}
 		}
@@ -382,7 +392,7 @@ func (s *Server) handleRequestPossiblyNotConnected(isAuthorized isAuthorizedFunc
 		rc.body = body
 
 		if s.options.LogRequests {
-			userLog(ctx).Debugf("request %v (%v bytes)", rc.req.URL, len(body))
+			userLog(ctx).Debugf("request %v (%v bytes)", rc.req.URL.Path, len(body))
 		}
 
 		rc.w.Header().Set("Content-Type", "application/json")
@@ -423,7 +433,7 @@ func (s *Server) handleRequestPossiblyNotConnected(isAuthorized isAuthorizedFunc
 		rc.w.WriteHeader(err.httpErrorCode)
 
 		if s.options.LogRequests && err.apiErrorCode == serverapi.ErrorNotConnected {
-			userLog(ctx).Debugf("%v: error code %v message %v", rc.req.URL, err.apiErrorCode, err.message)
+			userLog(ctx).Debugf("%v: error code %v message %v", rc.req.URL.Path, err.apiErrorCode, err.message)
 		}
 
 		_ = e.Encode(&serverapi.ErrorResponse{
@@ -834,9 +844,12 @@ func (s *Server) ServeStaticFiles(m *mux.Router, fs http.FileSystem) {
 				sessionID = uuid.NewString()
 
 				http.SetCookie(w, &http.Cookie{
-					Name:  kopiaSessionCookie,
-					Value: sessionID,
-					Path:  "/",
+					Name:     kopiaSessionCookie,
+					Value:    sessionID,
+					Path:     "/",
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
 				})
 			}
 
@@ -861,7 +874,7 @@ type Options struct {
 	AuthCookieSigningKey     string
 	LogRequests              bool
 	UIUser                   string // name of the user allowed to access the UI API
-	UIPreferencesFile        string // name of the JSON file storing UI preferences
+	UIPreferencesFile        string // name of the user preferences stored as JSON
 	ServerControlUser        string // name of the user allowed to access the server control API
 	DisableCSRFTokenChecks   bool
 	PersistentLogs           bool

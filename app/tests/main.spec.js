@@ -12,7 +12,7 @@ let mainPath;
 let executablePath;
 let tmpAppDataDir;
 
-function getKopiaUIDir() {
+function getGoreeCloudBackupDir() {
   switch (process.platform + "/" + process.arch) {
     case "darwin/x64":
       return path.resolve("../dist/kopia-ui/mac");
@@ -20,10 +20,10 @@ function getKopiaUIDir() {
       return path.resolve("../dist/kopia-ui/mac-arm64");
     case "linux/x64":
       // on Linux we must run from installed location due to AppArmor profile
-      return path.resolve("/opt/KopiaUI");
+      return path.resolve("/opt/GoreeCloud Backup");
     case "linux/arm64":
       // on Linux we must run from installed location due to AppArmor profile
-      return path.resolve("/opt/KopiaUI");
+      return path.resolve("/opt/GoreeCloud Backup");
     case "win32/x64":
       return path.resolve("../dist/kopia-ui/win-unpacked");
     default:
@@ -31,12 +31,12 @@ function getKopiaUIDir() {
   }
 }
 
-function getMainPath(kopiauiDir) {
+function getMainPath(appDir) {
   switch (process.platform) {
     case "darwin":
       return path.join(
-        kopiauiDir,
-        "KopiaUI.app",
+        appDir,
+        "GoreeCloud Backup.app",
         "Contents",
         "Resources",
         "app.asar",
@@ -45,7 +45,7 @@ function getMainPath(kopiauiDir) {
       );
     default:
       return path.join(
-        kopiauiDir,
+        appDir,
         "resources",
         "app.asar",
         "public",
@@ -54,20 +54,22 @@ function getMainPath(kopiauiDir) {
   }
 }
 
-function getExecutablePath(kopiauiDir) {
+function getExecutablePath(appDir) {
   switch (process.platform) {
     case "win32":
-      return path.join(kopiauiDir, "KopiaUI.exe");
+      return path.join(appDir, "GoreeCloud Backup.exe");
     case "darwin":
       return path.join(
-        kopiauiDir,
-        "KopiaUI.app",
+        appDir,
+        "GoreeCloud Backup.app",
         "Contents",
         "MacOS",
-        "KopiaUI",
+        "GoreeCloud Backup",
       );
     default:
-      return path.join(kopiauiDir, "kopia-ui");
+      // Linux intentionally retains the inherited internal executable name for
+      // package/AppArmor compatibility while the installed product identity is GoreeCloud Backup.
+      return path.join(appDir, "kopia-ui");
   }
 }
 
@@ -78,7 +80,9 @@ function getExecutablePath(kopiauiDir) {
  * @returns {string} The path to the created temporary directory.
  */
 function createTemporaryAppDataDir() {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kopia-test-"));
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "goreecloud-backup-test-"),
+  );
   fs.mkdirSync(path.join(tmpDir, "kopia"));
   return tmpDir;
 }
@@ -92,7 +96,7 @@ function createTemporaryAppDataDir() {
  * @returns {Promise<Electron.App>} - a promise that resolves to the launched app
  */
 async function launchApp(appDataDir) {
-  const electronApp = await electron.launch({
+  const app = await electron.launch({
     args: [mainPath],
     executablePath: executablePath,
     env: {
@@ -101,29 +105,27 @@ async function launchApp(appDataDir) {
     },
   });
 
-  electronApp.on("window", async (page) => {
+  app.on("window", async (page) => {
     const filename = page.url()?.split("/").pop();
     console.log(`Window opened: ${filename}`);
 
-    // capture errors
     page.on("pageerror", (error) => {
       console.error(error);
     });
-    // capture console messages
     page.on("console", (msg) => {
       console.log(msg.text());
     });
   });
 
-  return electronApp;
+  return app;
 }
 
 /**
- * Waits for Kopia to start up by delaying for a specified duration.
+ * Waits for the embedded backup engine to start up by delaying for a specified duration.
  *
  * @returns {Promise<void>} A promise that resolves after the delay.
  */
-function waitForKopiaToStartup() {
+function waitForBackupEngineToStartup() {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -132,11 +134,11 @@ function waitForKopiaToStartup() {
 }
 
 test.beforeAll(() => {
-  const kopiauiDir = getKopiaUIDir();
-  expect(kopiauiDir).not.toBeNull();
+  const appDir = getGoreeCloudBackupDir();
+  expect(appDir).not.toBeNull();
 
-  mainPath = getMainPath(kopiauiDir);
-  executablePath = getExecutablePath(kopiauiDir);
+  mainPath = getMainPath(appDir);
+  executablePath = getExecutablePath(appDir);
 
   console.log("main path", mainPath);
   console.log("executable path", executablePath);
@@ -146,11 +148,14 @@ test.beforeAll(() => {
 });
 
 test.beforeEach(async () => {
+  electronApp = undefined;
   tmpAppDataDir = createTemporaryAppDataDir();
 });
 
 test.afterEach(async () => {
-  await electronApp.close();
+  if (electronApp) {
+    await electronApp.close();
+  }
   fs.rmSync(tmpAppDataDir, { recursive: true, force: true });
 });
 
@@ -168,9 +173,7 @@ test("opens repository window on first start", async () => {
     waitUntil: "networkidle",
     networkIdleTimeout: 1000,
   });
-  expect(await page.title()).toMatch(/KopiaUI v\d+/);
-
-  // TODO - we can exercise some UI scenario using 'page'
+  expect(await page.title()).toMatch(/GoreeCloud Backup v\d+/);
 
   await electronApp.evaluate(async ({ app }) => {
     return app.testHooks.tray.popUpContextMenu();
@@ -184,7 +187,7 @@ test("opens repository window on first start", async () => {
 test("adds default repository if no repository is configured", async () => {
   electronApp = await launchApp(tmpAppDataDir);
 
-  await waitForKopiaToStartup();
+  await waitForBackupEngineToStartup();
 
   const configs = await electronApp.evaluate(async ({ app }) => {
     return app.testHooks.allConfigs();
@@ -200,7 +203,7 @@ test("doesn't open repository window if the default repository config exists", a
 
   electronApp = await launchApp(tmpAppDataDir);
 
-  await waitForKopiaToStartup();
+  await waitForBackupEngineToStartup();
   const windows = electronApp.windows();
   expect(windows).toHaveLength(0);
 });
@@ -218,7 +221,7 @@ test.describe("when non-default repository config exists", () => {
   test("doesn't open repository window if non-default repository config exists", async () => {
     electronApp = await launchApp(tmpAppDataDir);
 
-    await waitForKopiaToStartup();
+    await waitForBackupEngineToStartup();
     const windows = electronApp.windows();
     expect(windows).toHaveLength(0);
   });
@@ -226,7 +229,7 @@ test.describe("when non-default repository config exists", () => {
   test("doesn't add default repository", async () => {
     electronApp = await launchApp(tmpAppDataDir);
 
-    await waitForKopiaToStartup();
+    await waitForBackupEngineToStartup();
 
     const configs = await electronApp.evaluate(async ({ app }) => {
       return app.testHooks.allConfigs();
