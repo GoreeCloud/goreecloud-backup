@@ -1,0 +1,32 @@
+name: Platform Contract
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - goreecloud.platform.yaml
+      - .github/workflows/platform-contract.yml
+  push:
+    branches:
+      - master
+      - 'agent/**'
+      - 'governance/**'
+    paths:
+      - goreecloud.platform.yaml
+      - .github/workflows/platform-contract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    # Validate the exact caller revision against the accepted central
+    # Platform Contract 0.4 nine-system implementation.
+    uses: GoreeCloud/GoreeCloud/.github/workflows/reusable-platform-manifest.yml@6cb150d512647a0401b4da9e4741d7591693dee0
+    with:
+      manifest-path: goreecloud.platform.yaml
