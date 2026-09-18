@@ -81,21 +81,27 @@ func (s CheckpointStatus) Validate() error {
 	if s.ContractVersion != ContractVersion {
 		return fmt.Errorf("unsupported contract version %q", s.ContractVersion)
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint status request ID", s.RequestID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint status operation ID", s.OperationID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("dataset ID", s.DatasetID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("Backup scope ID", s.BackupScopeID); err != nil {
 		return err
 	}
+
 	if s.ObservedAt.IsZero() {
-		return fmt.Errorf("checkpoint status observation time must not be zero")
+		return errors.New("checkpoint status observation time must not be zero")
 	}
+
 	if !s.State.valid() {
 		return fmt.Errorf("invalid checkpoint lifecycle state %q", s.State)
 	}
@@ -107,20 +113,23 @@ func (s CheckpointStatus) Validate() error {
 		}
 	case CheckpointStateFailed:
 		if !s.FailureCategory.validFailure() {
-			return fmt.Errorf("failed checkpoint requires a bounded failure category")
+			return errors.New("failed checkpoint requires a bounded failure category")
 		}
+
 		if s.RecoveryPointID != "" || s.RecoveryPointUsable || s.IntegrityVerified || s.RestoreVerified {
-			return fmt.Errorf("failed checkpoint must not claim a usable or verified recovery point")
+			return errors.New("failed checkpoint must not claim a usable or verified recovery point")
 		}
 	case CheckpointStateCompleted:
 		if s.FailureCategory != CheckpointFailureNone {
-			return fmt.Errorf("completed checkpoint must not carry a failure category")
+			return errors.New("completed checkpoint must not carry a failure category")
 		}
+
 		if err := validateOpaqueIdentifier("recovery point ID", s.RecoveryPointID); err != nil {
 			return fmt.Errorf("completed checkpoint requires a recovery point: %w", err)
 		}
+
 		if s.RestoreVerified && (!s.RecoveryPointUsable || !s.IntegrityVerified) {
-			return fmt.Errorf("restore verification requires a usable integrity-verified recovery point")
+			return errors.New("restore verification requires a usable integrity-verified recovery point")
 		}
 	}
 
@@ -134,36 +143,47 @@ func (s CheckpointStatus) ValidateForSubmission(submission CheckpointSubmission)
 	if err := s.Validate(); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission request ID", submission.RequestID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission operation ID", submission.OperationID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission dataset ID", submission.DatasetID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission Backup scope ID", submission.BackupScopeID); err != nil {
 		return err
 	}
+
 	if submission.AcceptedAt.IsZero() {
-		return fmt.Errorf("checkpoint submission acceptance time must not be zero")
+		return errors.New("checkpoint submission acceptance time must not be zero")
 	}
+
 	if s.RequestID != submission.RequestID {
-		return fmt.Errorf("checkpoint status request ID does not match submission")
+		return errors.New("checkpoint status request ID does not match submission")
 	}
+
 	if s.OperationID != submission.OperationID {
-		return fmt.Errorf("checkpoint status operation ID does not match submission")
+		return errors.New("checkpoint status operation ID does not match submission")
 	}
+
 	if s.DatasetID != submission.DatasetID {
-		return fmt.Errorf("checkpoint status dataset ID does not match submission")
+		return errors.New("checkpoint status dataset ID does not match submission")
 	}
+
 	if s.BackupScopeID != submission.BackupScopeID {
-		return fmt.Errorf("checkpoint status Backup scope ID does not match submission")
+		return errors.New("checkpoint status Backup scope ID does not match submission")
 	}
+
 	if s.ObservedAt.Before(submission.AcceptedAt) {
-		return fmt.Errorf("checkpoint status predates checkpoint submission")
+		return errors.New("checkpoint status predates checkpoint submission")
 	}
+
 	return nil
 }
 

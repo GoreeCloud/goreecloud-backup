@@ -26,6 +26,7 @@ func TestCheckpointStatusReadyForProtectedChangeRequiresRecoveryEvidence(t *test
 	if err := ready.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
+
 	if !ready.ReadyForProtectedChange() {
 		t.Fatal("integrity-verified usable recovery point was not ready")
 	}
@@ -56,9 +57,11 @@ func TestCheckpointStatusReadyForProtectedChangeRequiresRecoveryEvidence(t *test
 		t.Run(tc.name, func(t *testing.T) {
 			status := validCompletedCheckpointStatus()
 			tc.mutate(&status)
+
 			if err := status.Validate(); err != nil {
 				t.Fatalf("Validate() error = %v", err)
 			}
+
 			if status.ReadyForProtectedChange() {
 				t.Fatal("status unexpectedly allowed protected change")
 			}
@@ -127,6 +130,7 @@ func TestCheckpointStatusRejectsContradictoryEvidence(t *testing.T) {
 			if err := tc.status.Validate(); err == nil {
 				t.Fatal("Validate() unexpectedly succeeded")
 			}
+
 			if tc.status.ReadyForProtectedChange() {
 				t.Fatal("contradictory status unexpectedly allowed protected change")
 			}

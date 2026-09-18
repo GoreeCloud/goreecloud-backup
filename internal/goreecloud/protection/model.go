@@ -6,6 +6,7 @@ package protection
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -172,8 +173,10 @@ func Evaluate(a Assessment) (Evaluation, error) {
 	}
 
 	var out Evaluation
+
 	seen := map[EvidenceKind]struct{}{}
 	statusByKind := map[EvidenceKind]EvidenceStatus{}
+
 	required := map[EvidenceKind]struct{}{}
 	for _, kind := range baselineRequiredEvidence {
 		required[kind] = struct{}{}
@@ -181,19 +184,24 @@ func Evaluate(a Assessment) (Evaluation, error) {
 
 	for _, item := range a.Evidence {
 		if strings.TrimSpace(string(item.Kind)) == "" {
-			return Evaluation{}, fmt.Errorf("evidence kind must not be empty")
+			return Evaluation{}, errors.New("evidence kind must not be empty")
 		}
+
 		if !item.Kind.valid() {
 			return Evaluation{}, fmt.Errorf("invalid evidence kind %q", item.Kind)
 		}
+
 		status := normalizeEvidenceStatus(item.Status)
 		if !status.valid() {
 			return Evaluation{}, fmt.Errorf("invalid status %q for evidence %q", item.Status, item.Kind)
 		}
+
 		if _, ok := seen[item.Kind]; ok {
 			return Evaluation{}, fmt.Errorf("duplicate evidence kind %q", item.Kind)
 		}
+
 		seen[item.Kind] = struct{}{}
+
 		statusByKind[item.Kind] = status
 		if item.Required {
 			required[item.Kind] = struct{}{}
@@ -206,6 +214,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 			out.Missing = append(out.Missing, kind)
 			continue
 		}
+
 		if status == EvidenceNotApplicable {
 			return Evaluation{}, fmt.Errorf("required evidence %q cannot be not applicable", kind)
 		}
@@ -225,6 +234,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 	if !a.Configured {
 		out.State = StateUnprotected
 		out.Reasons = []ReasonCode{ReasonNotConfigured}
+
 		return out, nil
 	}
 
@@ -233,31 +243,38 @@ func Evaluate(a Assessment) (Evaluation, error) {
 		if len(out.Failed) > 0 {
 			out.Reasons = append(out.Reasons, ReasonRequiredEvidenceFailed)
 		}
+
 		if len(out.Stale) > 0 {
 			out.Reasons = append(out.Reasons, ReasonRequiredEvidenceStale)
 		}
+
 		if restoreVerification == EvidenceFailing {
 			out.Reasons = append(out.Reasons, ReasonRestoreVerificationFailed)
 		}
+
 		if restoreVerification == EvidenceStale {
 			out.Reasons = append(out.Reasons, ReasonRestoreVerificationStale)
 		}
+
 		return out, nil
 	}
 
 	if a.BackupInProgress {
 		out.State = StateBackingUp
 		out.Reasons = []ReasonCode{ReasonBackupInProgress}
+
 		return out, nil
 	}
 
 	if len(out.Missing) > 0 {
 		out.State = StateConfigured
 		out.Reasons = []ReasonCode{ReasonRequiredEvidenceMissing}
+
 		return out, nil
 	}
 
 	out.State = StateProtected
+
 	out.Reasons = []ReasonCode{ReasonOperationalEvidencePassing}
 	if restoreVerification == EvidencePassing {
 		out.State = StateRestoreVerified
@@ -268,7 +285,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 }
 
 func sortEvidenceKinds(v []EvidenceKind) {
-	sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+	slices.Sort(v)
 }
 
 // VerificationType describes the bounded kind of representative restore test.
@@ -370,23 +387,29 @@ type RecoveryEvidence struct {
 // Validate checks that a recovery-evidence record is internally coherent.
 func (r RecoveryEvidence) Validate() error {
 	if strings.TrimSpace(r.DatasetID) == "" {
-		return fmt.Errorf("dataset ID must not be empty")
+		return errors.New("dataset ID must not be empty")
 	}
+
 	if strings.TrimSpace(r.RepositoryID) == "" {
-		return fmt.Errorf("repository ID must not be empty")
+		return errors.New("repository ID must not be empty")
 	}
+
 	if strings.TrimSpace(r.RecoveryPointID) == "" {
-		return fmt.Errorf("recovery point ID must not be empty")
+		return errors.New("recovery point ID must not be empty")
 	}
+
 	if r.ObservedAt.IsZero() {
-		return fmt.Errorf("observed time must not be zero")
+		return errors.New("observed time must not be zero")
 	}
+
 	if !r.BackupStatus.valid() || r.BackupStatus == EvidenceNotApplicable {
 		return fmt.Errorf("invalid backup status %q", r.BackupStatus)
 	}
+
 	if !r.IntegrityStatus.valid() || r.IntegrityStatus == EvidenceNotApplicable {
 		return fmt.Errorf("invalid integrity status %q", r.IntegrityStatus)
 	}
+
 	if r.RestoreTest == nil {
 		return nil
 	}
@@ -395,20 +418,25 @@ func (r RecoveryEvidence) Validate() error {
 	if !t.Type.valid() {
 		return fmt.Errorf("invalid restore verification type %q", t.Type)
 	}
+
 	if t.Status != EvidencePassing && t.Status != EvidenceFailing {
 		return fmt.Errorf("restore test status must be passing or failing, got %q", t.Status)
 	}
+
 	if t.CompletedAt.IsZero() {
-		return fmt.Errorf("restore test completion time must not be zero")
+		return errors.New("restore test completion time must not be zero")
 	}
+
 	if !t.FailureCategory.valid() {
 		return fmt.Errorf("invalid failure category %q", t.FailureCategory)
 	}
+
 	if t.Status == EvidencePassing && t.FailureCategory != FailureNone {
 		return fmt.Errorf("passing restore test cannot have failure category %q", t.FailureCategory)
 	}
+
 	if t.Status == EvidenceFailing && t.FailureCategory == FailureNone {
-		return fmt.Errorf("failing restore test must have a failure category")
+		return errors.New("failing restore test must have a failure category")
 	}
 
 	seenChecks := map[ValidationCheck]struct{}{}
@@ -416,9 +444,11 @@ func (r RecoveryEvidence) Validate() error {
 		if !check.valid() {
 			return fmt.Errorf("invalid validation check %q", check)
 		}
+
 		if _, ok := seenChecks[check]; ok {
 			return fmt.Errorf("duplicate validation check %q", check)
 		}
+
 		seenChecks[check] = struct{}{}
 	}
 

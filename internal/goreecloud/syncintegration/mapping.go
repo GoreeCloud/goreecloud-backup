@@ -38,18 +38,23 @@ func (m DatasetScopeMapping) Validate() error {
 	if m.ContractVersion != ContractVersion {
 		return fmt.Errorf("unsupported contract version %q", m.ContractVersion)
 	}
+
 	if err := validateOpaqueIdentifier("dataset ID", m.DatasetID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("Backup scope ID", m.BackupScopeID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("mapping revision", m.MappingRevision); err != nil {
 		return err
 	}
+
 	if m.UpdatedAt.IsZero() {
-		return fmt.Errorf("mapping update time must not be zero")
+		return errors.New("mapping update time must not be zero")
 	}
+
 	return nil
 }
 
@@ -57,15 +62,19 @@ func (m DatasetScopeMapping) validateForDataset(datasetID string) error {
 	if err := validateOpaqueIdentifier("dataset ID", datasetID); err != nil {
 		return err
 	}
+
 	if err := m.Validate(); err != nil {
 		return err
 	}
+
 	if m.DatasetID != datasetID {
-		return fmt.Errorf("resolved mapping dataset ID does not match checkpoint request")
+		return errors.New("resolved mapping dataset ID does not match checkpoint request")
 	}
+
 	if !m.Active {
 		return ErrDatasetScopeMappingInactive
 	}
+
 	return nil
 }
 
