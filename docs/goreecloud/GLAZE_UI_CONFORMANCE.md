@@ -2,10 +2,11 @@
 
 ## Status
 
-Target design system: **Glaze UI 1.0**  
-Canonical source revision: `d6e446fd8ef251259d16368d50aad90d9287a774`  
+Implemented source design system: **Glaze UI 1.0**  
+Implemented source revision: `d6e446fd8ef251259d16368d50aad90d9287a774`  
+Current mandatory Stable target: **Glaze UI V1.5 / 1.5.1** at `98da57064ede0f334627b632bc16801f580331af`  
 Security identity: **Wardveil Security by GoreeCloud**  
-Current implementation state: **Source conformance in active development; visual acceptance pending**
+Current implementation state: **V1.0 source conformance in active development; V1.5.1 migration and representative visual/runtime acceptance pending**
 
 This record defines the current GoreeCloud Backup presentation boundary and its stable-release gates. It does not authorize production replacement of an existing Kopia deployment or repository.
 

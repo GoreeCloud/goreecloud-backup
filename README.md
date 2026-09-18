@@ -83,7 +83,7 @@ The recovery-evidence structures use bounded identifiers, statuses, validation c
 
 ## Glaze UI
 
-GoreeCloud Backup targets **Glaze UI 1.0** using the canonical GoreeCloud design-system revision recorded in the conformance document.
+GoreeCloud Backup currently implements the bounded **Glaze UI 1.0** source foundation at canonical revision `d6e446fd8ef251259d16368d50aad90d9287a774`. The current mandatory Stable consumer target is **Glaze UI V1.5 / 1.5.1** at exact Stable revision `98da57064ede0f334627b632bc16801f580331af`, so this Development line is migration-required. Existing 1.0 source-conformance evidence is retained as implementation provenance and must not be relabeled as 1.5.1 acceptance.
 
 The application follows the Glaze surface hierarchy of **Canvas, Solid, Raised, Glaze, and Overlay** and uses semantic design roles for color, depth, radius, spacing, target sizing, focus, motion, and status presentation.
 
