@@ -156,7 +156,12 @@ test.afterEach(async () => {
   if (electronApp) {
     await electronApp.close();
   }
-  fs.rmSync(tmpAppDataDir, { recursive: true, force: true });
+  fs.rmSync(tmpAppDataDir, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100,
+  });
 });
 
 test("opens repository window on first start", async () => {
@@ -169,11 +174,9 @@ test("opens repository window on first start", async () => {
   const page = await electronApp.firstWindow();
 
   expect(page).toBeTruthy();
-  await page.waitForNavigation({
-    waitUntil: "networkidle",
-    networkIdleTimeout: 1000,
+  await expect(page).toHaveTitle(/GoreeCloud Backup v\d+/, {
+    timeout: 30000,
   });
-  expect(await page.title()).toMatch(/GoreeCloud Backup v\d+/);
 
   await electronApp.evaluate(async ({ app }) => {
     return app.testHooks.tray.popUpContextMenu();

@@ -16,6 +16,7 @@ function newServerForRepo(repoID) {
   let runningServerControlPassword = "";
   let runningServerAddress = "";
   let runningServerCertificate = "";
+  let runningServerPollInterval = null;
   let runningServerStatusDetails = {
     startingUp: true,
   };
@@ -127,14 +128,16 @@ function newServerForRepo(repoID) {
       }
 
       const statusPollInterval = setInterval(pollOnce, pollInterval);
+      runningServerPollInterval = statusPollInterval;
 
       runningServerProcess.on("close", (code, signal) => {
         this.appendToLog(
           `child process exited with code ${code} and signal ${signal}`,
         );
-        if (runningServerProcess === p) {
-          clearInterval(statusPollInterval);
+        clearInterval(statusPollInterval);
 
+        if (runningServerProcess === p) {
+          runningServerPollInterval = null;
           runningServerAddress = "";
           runningServerPassword = "";
           runningServerControlPassword = "";
@@ -216,8 +219,13 @@ function newServerForRepo(repoID) {
       }
 
       runningServerProcess.kill();
+      if (runningServerPollInterval) {
+        clearInterval(runningServerPollInterval);
+        runningServerPollInterval = null;
+      }
       runningServerAddress = "";
       runningServerPassword = "";
+      runningServerControlPassword = "";
       runningServerCertSHA256 = "";
       runningServerCertificate = "";
       runningServerProcess = null;
