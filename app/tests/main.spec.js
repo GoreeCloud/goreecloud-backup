@@ -133,6 +133,46 @@ function waitForBackupEngineToStartup() {
   });
 }
 
+/**
+ * Waits until the packaged Electron child process has actually exited.
+ *
+ * Playwright may finish its close request before Windows releases every handle
+ * beneath the temporary application profile. Waiting for the child-process
+ * exit/close signal keeps test cleanup from racing those handle releases.
+ *
+ * @param {import("child_process").ChildProcess} childProcess
+ * @param {number} timeoutMs
+ * @returns {Promise<void>}
+ */
+function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
+  if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    let timeoutID;
+
+    const cleanup = () => {
+      clearTimeout(timeoutID);
+      childProcess.off("exit", onExit);
+      childProcess.off("close", onExit);
+    };
+
+    const onExit = () => {
+      cleanup();
+      resolve();
+    };
+
+    timeoutID = setTimeout(() => {
+      cleanup();
+      reject(new Error("timed out waiting for packaged Electron process exit"));
+    }, timeoutMs);
+
+    childProcess.once("exit", onExit);
+    childProcess.once("close", onExit);
+  });
+}
+
 test.beforeAll(() => {
   const appDir = getGoreeCloudBackupDir();
   expect(appDir).not.toBeNull();
@@ -154,11 +194,16 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   if (electronApp) {
+    const packagedProcess = electronApp.process();
+    const processExited = waitForElectronProcessExit(packagedProcess);
+
     await electronApp.evaluate(async ({ app }) => {
       await app.testHooks.stopAllServers();
     });
     await electronApp.close();
+    await processExited;
   }
+
   fs.rmSync(tmpAppDataDir, {
     recursive: true,
     force: true,
