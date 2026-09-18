@@ -1,0 +1,56 @@
+name: PR12 Windows Packaged Build Probe
+
+on:
+  push:
+    branches:
+      - ci/pr12-windows-build-probe
+    paths:
+      - .github/workflows/pr12-windows-build-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UNIX_SHELL_ON_WINDOWS: true
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out exact PR12 candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 54cddcd22e54daea490f98b13a1da55d090769fa
+          fetch-depth: 0
+
+      - name: Verify exact candidate revision
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "54cddcd22e54daea490f98b13a1da55d090769fa"
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+
+      - name: Install Windows-specific packages
+        run: choco install --no-progress -y make zip unzip curl
+
+      - name: Setup
+        run: make -j4 ci-setup
+
+      - name: Install Windows signing tools
+        run: make windows-signing-tools
+        env:
+          WINDOWS_SIGNING_TOOLS_URL: ${{ secrets.WINDOWS_SIGNING_TOOLS_URL }}
+          WINDOWS_SIGN_TOOL: ${{ secrets.WINDOWS_SIGN_TOOL }}
+
+      - name: Build and packaged E2E
+        run: make ci-build
+        timeout-minutes: 40
+        env:
+          WINDOWS_SIGN_USER: ${{ secrets.WINDOWS_SIGN_USER }}
+          WINDOWS_SIGN_AUTH: ${{ secrets.WINDOWS_SIGN_AUTH }}
+          WINDOWS_CERT_SHA1: ${{ secrets.WINDOWS_CERT_SHA1 }}
+          WINDOWS_SIGN_TOOL: ${{ secrets.WINDOWS_SIGN_TOOL }}
+          MACOS_SIGNING_IDENTITY: ""
