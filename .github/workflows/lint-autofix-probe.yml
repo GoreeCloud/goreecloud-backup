@@ -1,0 +1,43 @@
+name: Lint Autofix Probe
+
+on:
+  push:
+    branches:
+      - tooling/lint-autofix-probe
+    paths:
+      - .github/workflows/lint-autofix-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Apply safe lint autofixes to changed code
+        continue-on-error: true
+        run: make linter_flags="--new-from-rev=origin/master" lint-fix
+
+      - name: Capture autofix patch
+        run: |
+          git diff --binary -- '*.go' > lint-autofix.patch
+          git diff --stat -- '*.go'
+          test -s lint-autofix.patch || touch lint-autofix.patch
+
+      - name: Upload patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-autofix-patch
+          path: lint-autofix.patch
+          if-no-files-found: error
