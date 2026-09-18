@@ -1,0 +1,36 @@
+name: PR13 Changed-Code Lint Probe
+
+on:
+  push:
+    branches:
+      - ci/pr13-lint-probe
+    paths:
+      - .github/workflows/pr13-lint-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact PR13 candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 2b151b19a14afd1d5490e734c8128050aaac57f7
+          fetch-depth: 0
+
+      - name: Verify exact candidate revision
+        run: test "$(git rev-parse HEAD)" = "2b151b19a14afd1d5490e734c8128050aaac57f7"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Lint Development-changed code
+        run: make linter_flags="--new-from-rev=origin/master" lint
+
+      - name: Lint Windows-target Development-changed code
+        run: make linter_flags="--new-from-rev=origin/master" lint-windows
