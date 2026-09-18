@@ -608,6 +608,11 @@ app.on("ready", () => {
       tray: tray,
       showRepoWindow: showRepoWindow,
       allConfigs: allConfigs,
+      stopAllServers: async () => {
+        await Promise.all(
+          allConfigs().map((repoID) => serverForRepo(repoID).stopServerAndWait()),
+        );
+      },
     };
   }
 

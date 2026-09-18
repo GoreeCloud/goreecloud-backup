@@ -232,6 +232,34 @@ function newServerForRepo(repoID) {
       this.raiseStatusUpdatedEvent();
     },
 
+    async stopServerAndWait() {
+      const serverProcess = runningServerProcess;
+      if (!serverProcess) {
+        this.stopServer();
+        return;
+      }
+
+      const closed = new Promise((resolve) => {
+        serverProcess.once("close", resolve);
+        serverProcess.once("error", resolve);
+      });
+
+      this.stopServer();
+
+      let timeoutID;
+      const timeout = new Promise((_, reject) => {
+        timeoutID = setTimeout(() => {
+          reject(new Error("timed out waiting for embedded server shutdown"));
+        }, 5000);
+      });
+
+      try {
+        await Promise.race([closed, timeout]);
+      } finally {
+        clearTimeout(timeoutID);
+      }
+    },
+
     getServerAddress() {
       return runningServerAddress;
     },

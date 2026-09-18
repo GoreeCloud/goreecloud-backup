@@ -154,6 +154,9 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   if (electronApp) {
+    await electronApp.evaluate(async ({ app }) => {
+      await app.testHooks.stopAllServers();
+    });
     await electronApp.close();
   }
   fs.rmSync(tmpAppDataDir, {
