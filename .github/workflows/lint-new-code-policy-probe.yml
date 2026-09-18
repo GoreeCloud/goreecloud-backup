@@ -1,0 +1,32 @@
+name: Lint New-Code Policy Probe
+
+on:
+  push:
+    branches:
+      - tooling/lint-new-code-policy-probe
+    paths:
+      - .github/workflows/lint-new-code-policy-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-new-code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run current lint policy on changed code only
+        run: make linter_flags="--new-from-rev=origin/master" lint
+
+      - name: Run current Windows lint policy on changed code only
+        run: make linter_flags="--new-from-rev=origin/master" lint-windows
