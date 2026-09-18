@@ -1,0 +1,42 @@
+name: Lint 2.9 Policy Probe
+
+on:
+  push:
+    branches:
+      - tooling/lint29-policy-probe
+    paths:
+      - .github/workflows/lint29-policy-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint29:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.26.8
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.8'
+
+      - name: Regenerate official golangci-lint 2.9.0 checksums
+        run: |
+          go run github.com/kopia/kopia/tools/gettool \
+            --regenerate-checksums tools/gettool/checksums.txt \
+            --output-dir /tmp/lint29 \
+            --tool linter:2.9.0
+
+      - name: Run existing lint policy with golangci-lint 2.9.0
+        run: make GOLANGCI_LINT_VERSION=2.9.0 lint
+
+      - name: Upload generated checksum file
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint29-generated-checksums
+          path: tools/gettool/checksums.txt
+          if-no-files-found: error
