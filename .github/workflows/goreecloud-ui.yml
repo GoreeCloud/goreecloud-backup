@@ -57,8 +57,8 @@ jobs:
 
       - name: Verify GoreeCloud Go formatting
         run: |
-          go run github.com/kopia/kopia/tools/gettool --tool linter:2.6.1 --output-dir tools/.tools/golangci-lint-2.6.1
-          tools/.tools/golangci-lint-2.6.1/golangci-lint fmt internal/server/htmlui_goreecloud.go internal/server/htmlui_goreecloud_test.go
+          go run github.com/kopia/kopia/tools/gettool --tool linter:2.13.2 --output-dir tools/.tools/golangci-lint-2.13.2
+          tools/.tools/golangci-lint-2.13.2/golangci-lint fmt internal/server/htmlui_goreecloud.go internal/server/htmlui_goreecloud_test.go
           git diff --exit-code -- internal/server/htmlui_goreecloud.go internal/server/htmlui_goreecloud_test.go
 
       - name: Validate Glaze UI source contract
