@@ -1,0 +1,53 @@
+name: Apply GoreeCloud Lint Autofixes
+
+on:
+  push:
+    branches:
+      - quality/goreecloud-lint-autofix
+    paths:
+      - .github/workflows/lint-autofix-apply.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out quality branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: quality/goreecloud-lint-autofix
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Apply current safe autofixes to Development-changed Go code
+        continue-on-error: true
+        run: make linter_flags="--new-from-rev=origin/master" lint-fix
+
+      - name: Verify scope and commit candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only -- '*.go')"
+          if [ -z "$changed" ]; then
+            echo "No Go autofixes produced."
+            exit 0
+          fi
+          echo "$changed"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^internal/goreecloud/' || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected autofix scope:"
+            echo "$unexpected"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- internal/goreecloud
+          git commit -m "style(general): apply bounded GoreeCloud lint autofixes"
+          git push origin HEAD:quality/goreecloud-lint-autofix
