@@ -10,6 +10,7 @@ import (
 
 func TestAllowedOperationsStayNarrow(t *testing.T) {
 	allowed := AllowedOperations()
+
 	want := []Operation{
 		OperationReadProtection,
 		OperationRequestCheckpoint,
@@ -18,10 +19,12 @@ func TestAllowedOperationsStayNarrow(t *testing.T) {
 	if len(allowed) != len(want) {
 		t.Fatalf("AllowedOperations() length = %d, want %d", len(allowed), len(want))
 	}
+
 	for i := range want {
 		if allowed[i] != want[i] {
 			t.Fatalf("AllowedOperations()[%d] = %q, want %q", i, allowed[i], want[i])
 		}
+
 		if err := ValidateOperation(allowed[i]); err != nil {
 			t.Fatalf("ValidateOperation(%q) returned error: %v", allowed[i], err)
 		}
@@ -53,15 +56,19 @@ func TestNewProtectionViewCopiesBoundedBackupState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewProtectionView() error = %v", err)
 	}
+
 	if view.ContractVersion != ContractVersion {
 		t.Fatalf("ContractVersion = %q, want %q", view.ContractVersion, ContractVersion)
 	}
+
 	if view.State != protection.StateDegraded {
 		t.Fatalf("State = %q, want %q", view.State, protection.StateDegraded)
 	}
+
 	if len(view.Reasons) != 1 || view.Reasons[0] != protection.ReasonRequiredEvidenceStale {
 		t.Fatalf("Reasons = %#v", view.Reasons)
 	}
+
 	if len(view.Stale) != 1 || view.Stale[0] != protection.EvidenceIntegrity {
 		t.Fatalf("Stale = %#v", view.Stale)
 	}
@@ -69,9 +76,11 @@ func TestNewProtectionViewCopiesBoundedBackupState(t *testing.T) {
 	// Mutating the original evaluation must not mutate the exported view.
 	evaluation.Reasons[0] = protection.ReasonNotConfigured
 	evaluation.Stale[0] = protection.EvidenceScope
+
 	if view.Reasons[0] != protection.ReasonRequiredEvidenceStale {
 		t.Fatalf("view aliases evaluation reasons")
 	}
+
 	if view.Stale[0] != protection.EvidenceIntegrity {
 		t.Fatalf("view aliases evaluation stale evidence")
 	}
@@ -147,12 +156,15 @@ func TestSyncManagedRestoreRequiresSafeCoordination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanRestoreCoordination() error = %v", err)
 	}
+
 	if !plan.StagingRequired {
 		t.Fatal("Sync-managed restore did not require staging")
 	}
+
 	if plan.DirectWriteAllowed {
 		t.Fatal("Sync-managed restore unexpectedly allowed direct write")
 	}
+
 	if plan.Reconciliation != ReconciliationRequired {
 		t.Fatalf("Reconciliation = %q, want %q", plan.Reconciliation, ReconciliationRequired)
 	}
@@ -166,6 +178,7 @@ func TestSyncManagedRestoreRequiresSafeCoordination(t *testing.T) {
 	if len(plan.RequiredActions) != len(wantActions) {
 		t.Fatalf("RequiredActions length = %d, want %d", len(plan.RequiredActions), len(wantActions))
 	}
+
 	for i := range wantActions {
 		if plan.RequiredActions[i] != wantActions[i] {
 			t.Fatalf("RequiredActions[%d] = %q, want %q", i, plan.RequiredActions[i], wantActions[i])
@@ -179,12 +192,15 @@ func TestBackupRecoveryDoesNotDependOnSyncAvailability(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PlanRestoreCoordination(%q) error = %v", availability, err)
 		}
+
 		if !plan.StagingRequired {
 			t.Fatalf("availability %q did not preserve staging recovery", availability)
 		}
+
 		if plan.DirectWriteAllowed {
 			t.Fatalf("availability %q unexpectedly allowed direct production write", availability)
 		}
+
 		if plan.Reconciliation != ReconciliationPending {
 			t.Fatalf("availability %q reconciliation = %q, want %q", availability, plan.Reconciliation, ReconciliationPending)
 		}
@@ -196,15 +212,19 @@ func TestNonSyncManagedRestoreAddsNoSyncAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanRestoreCoordination() error = %v", err)
 	}
+
 	if plan.StagingRequired {
 		t.Fatal("non-Sync-managed restore unexpectedly requires Sync staging")
 	}
+
 	if !plan.DirectWriteAllowed {
 		t.Fatal("non-Sync-managed restore was blocked by the Sync boundary")
 	}
+
 	if plan.Reconciliation != ReconciliationNotRequired {
 		t.Fatalf("Reconciliation = %q, want %q", plan.Reconciliation, ReconciliationNotRequired)
 	}
+
 	if len(plan.RequiredActions) != 0 {
 		t.Fatalf("RequiredActions = %#v, want none", plan.RequiredActions)
 	}
@@ -227,6 +247,7 @@ func TestOpaqueIdentifiersAreBoundedAndNonControl(t *testing.T) {
 		"dataset\nsecret",
 	} {
 		req := valid
+
 		req.DatasetID = datasetID
 		if err := req.Validate(); err == nil {
 			t.Fatalf("dataset ID %q unexpectedly validated", datasetID)

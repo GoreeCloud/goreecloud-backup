@@ -11,6 +11,7 @@ import (
 
 func observationsAt(observedAt time.Time) []protection.EvidenceObservation {
 	items := passingOperationalEvidence()
+
 	out := make([]protection.EvidenceObservation, 0, len(items))
 	for _, item := range items {
 		out = append(out, protection.EvidenceObservation{
@@ -19,6 +20,7 @@ func observationsAt(observedAt time.Time) []protection.EvidenceObservation {
 			ObservedAt: observedAt,
 		})
 	}
+
 	return out
 }
 
@@ -27,15 +29,19 @@ func policyWithMaxAge(t *testing.T, kind protection.EvidenceKind, maxAge time.Du
 
 	policy := protection.BaselinePolicy()
 	policy.ID = "test-policy"
+
 	found := false
 	for i := range policy.Requirements {
 		if policy.Requirements[i].Kind == kind {
 			policy.Requirements[i].MaxAge = maxAge
 			found = true
+
 			break
 		}
 	}
+
 	require.True(t, found, "expected baseline requirement %q", kind)
+
 	return policy
 }
 
@@ -100,6 +106,7 @@ func TestEvaluateObservedFreshness(t *testing.T) {
 
 	t.Run("passing evidence without timestamp becomes stale when policy requires freshness", func(t *testing.T) {
 		policy := policyWithMaxAge(t, protection.EvidenceIntegrity, time.Hour)
+
 		observations := observationsAt(evaluatedAt)
 		for i := range observations {
 			if observations[i].Kind == protection.EvidenceIntegrity {
@@ -118,6 +125,7 @@ func TestEvaluateObservedFreshness(t *testing.T) {
 
 	t.Run("producer supplied stale status remains degraded without max age", func(t *testing.T) {
 		policy := protection.BaselinePolicy()
+
 		observations := observationsAt(evaluatedAt)
 		for i := range observations {
 			if observations[i].Kind == protection.EvidenceMonitoring {

@@ -7,6 +7,7 @@ import (
 
 func TestCheckpointStatusBindsToExactSubmission(t *testing.T) {
 	submission := validCheckpointSubmission()
+
 	status := validCompletedCheckpointStatus()
 	if err := status.ValidateForSubmission(submission); err != nil {
 		t.Fatalf("ValidateForSubmission() error = %v", err)
@@ -25,6 +26,7 @@ func TestCheckpointStatusBindsToExactSubmission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			candidate := validCompletedCheckpointStatus()
 			tc.mutate(&candidate)
+
 			if err := candidate.ValidateForSubmission(submission); err == nil {
 				t.Fatal("ValidateForSubmission() unexpectedly succeeded")
 			}
@@ -34,6 +36,7 @@ func TestCheckpointStatusBindsToExactSubmission(t *testing.T) {
 
 func TestSubmissionDoesNotBecomeRecoveryEvidenceByItself(t *testing.T) {
 	submission := validCheckpointSubmission()
+
 	accepted := CheckpointStatus{
 		ContractVersion: ContractVersion,
 		RequestID:       submission.RequestID,
@@ -46,6 +49,7 @@ func TestSubmissionDoesNotBecomeRecoveryEvidenceByItself(t *testing.T) {
 	if err := accepted.ValidateForSubmission(submission); err != nil {
 		t.Fatalf("ValidateForSubmission() error = %v", err)
 	}
+
 	if accepted.ReadyForProtectedChange() {
 		t.Fatal("accepted submission was incorrectly treated as recovery-ready")
 	}

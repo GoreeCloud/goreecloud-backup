@@ -87,9 +87,11 @@ func NewProtectionView(datasetID string, evaluatedAt time.Time, evaluation prote
 	if err := validateOpaqueIdentifier("dataset ID", datasetID); err != nil {
 		return ProtectionView{}, err
 	}
+
 	if evaluatedAt.IsZero() {
-		return ProtectionView{}, fmt.Errorf("evaluation time must not be zero")
+		return ProtectionView{}, errors.New("evaluation time must not be zero")
 	}
+
 	if !validProtectionState(evaluation.State) {
 		return ProtectionView{}, fmt.Errorf("invalid protection state %q", evaluation.State)
 	}
@@ -151,12 +153,15 @@ func (r CheckpointRequest) Validate() error {
 	if r.ContractVersion != ContractVersion {
 		return fmt.Errorf("unsupported contract version %q", r.ContractVersion)
 	}
+
 	if err := validateOpaqueIdentifier("request ID", r.RequestID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("dataset ID", r.DatasetID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("authorization decision reference", r.AuthorizationDecisionRef); err != nil {
 		return err
 	}
@@ -234,6 +239,7 @@ func PlanRestoreCoordination(datasetID string, syncManaged bool, availability Sy
 	if err := validateOpaqueIdentifier("dataset ID", datasetID); err != nil {
 		return RestoreCoordination{}, err
 	}
+
 	if !availability.valid() {
 		return RestoreCoordination{}, fmt.Errorf("invalid Sync availability %q", availability)
 	}
@@ -253,6 +259,7 @@ func PlanRestoreCoordination(datasetID string, syncManaged bool, availability Sy
 
 	plan.StagingRequired = true
 	plan.DirectWriteAllowed = false
+
 	plan.RequiredActions = []CoordinationAction{
 		ActionStageRestore,
 		ActionPauseOrMaintenance,
@@ -272,16 +279,20 @@ func validateOpaqueIdentifier(name, value string) error {
 	if !utf8.ValidString(value) {
 		return fmt.Errorf("%s must be valid UTF-8", name)
 	}
+
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf("%s must not be empty", name)
 	}
+
 	if len(value) > maxOpaqueIdentifierBytes {
 		return fmt.Errorf("%s exceeds %d bytes", name, maxOpaqueIdentifierBytes)
 	}
+
 	for _, r := range value {
 		if unicode.IsControl(r) {
 			return fmt.Errorf("%s must not contain control characters", name)
 		}
 	}
+
 	return nil
 }
