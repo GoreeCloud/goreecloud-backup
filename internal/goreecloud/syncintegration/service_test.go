@@ -288,12 +288,13 @@ func TestCheckpointServicePropagatesExecutorFailureWithoutInventingSuccess(t *te
 
 func TestCheckpointServiceRejectsMalformedSubmission(t *testing.T) {
 	request := validCheckpointRequest()
+	acceptedAt := validCheckpointSubmission().AcceptedAt
 
 	for _, submission := range []CheckpointSubmission{
-		{RequestID: "other-request", OperationID: "operation-1", DatasetID: request.DatasetID, BackupScopeID: "backup-scope-family-documents", AcceptedAt: time.Now().UTC()},
-		{RequestID: request.RequestID, OperationID: "", DatasetID: request.DatasetID, BackupScopeID: "backup-scope-family-documents", AcceptedAt: time.Now().UTC()},
-		{RequestID: request.RequestID, OperationID: "operation-1", DatasetID: "other-dataset", BackupScopeID: "backup-scope-family-documents", AcceptedAt: time.Now().UTC()},
-		{RequestID: request.RequestID, OperationID: "operation-1", DatasetID: request.DatasetID, BackupScopeID: "other-scope", AcceptedAt: time.Now().UTC()},
+		{RequestID: "other-request", OperationID: "operation-1", DatasetID: request.DatasetID, BackupScopeID: "backup-scope-family-documents", AcceptedAt: acceptedAt},
+		{RequestID: request.RequestID, OperationID: "", DatasetID: request.DatasetID, BackupScopeID: "backup-scope-family-documents", AcceptedAt: acceptedAt},
+		{RequestID: request.RequestID, OperationID: "operation-1", DatasetID: "other-dataset", BackupScopeID: "backup-scope-family-documents", AcceptedAt: acceptedAt},
+		{RequestID: request.RequestID, OperationID: "operation-1", DatasetID: request.DatasetID, BackupScopeID: "other-scope", AcceptedAt: acceptedAt},
 		{RequestID: request.RequestID, OperationID: "operation-1", DatasetID: request.DatasetID, BackupScopeID: "backup-scope-family-documents"},
 	} {
 		authorizer, resolver, executor := validCheckpointRuntimeSeams()
