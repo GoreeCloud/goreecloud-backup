@@ -5,6 +5,7 @@ on:
     paths:
       - ".dockerignore"
       - "deploy/docker/**"
+      - "deploy/systemd/**"
       - ".github/workflows/goreecloud-vps-packaging.yml"
 
 permissions:
@@ -12,7 +13,7 @@ permissions:
 
 jobs:
   validate:
-    name: Validate governed VPS packaging
+    name: Validate governed VPS CLI packaging
     runs-on: ubuntu-latest
 
     steps:
@@ -24,8 +25,9 @@ jobs:
         run: |
           set -euo pipefail
           sh -n deploy/docker/entrypoint.sh
-          sh -n deploy/docker/healthcheck.sh
           sh -n deploy/docker/build-image.sh
+          sh -n deploy/docker/goreecloud-backup.sh
+          sh -n deploy/docker/vps-preflight.sh
 
       - name: Validate Compose rendering
         shell: bash
@@ -36,35 +38,32 @@ jobs:
           GOREECLOUD_BACKUP_CONFIG_DIR: /tmp/goreecloud-backup/config
           GOREECLOUD_BACKUP_CACHE_DIR: /tmp/goreecloud-backup/cache
           GOREECLOUD_BACKUP_LOG_DIR: /tmp/goreecloud-backup/logs
+          GOREECLOUD_BACKUP_TMP_DIR: /tmp/goreecloud-backup/tmp
           GOREECLOUD_BACKUP_RESTORE_DIR: /tmp/goreecloud-backup/restore
-          GOREECLOUD_BACKUP_SOURCE_ROOT: /tmp/goreecloud-backup/source
-          GOREECLOUD_GATEWAY_NETWORK: goreecloud-gateway-ci
-          GOREECLOUD_BACKUP_SERVER_USERNAME: goreecloud-backup-ci
-          GOREECLOUD_BACKUP_SERVER_CONTROL_USERNAME: server-control
+          GOREECLOUD_BACKUP_SFTP_KEY_FILE: /tmp/goreecloud-backup/secrets/kopia-sftp-ed25519
+          GOREECLOUD_BACKUP_SFTP_KNOWN_HOSTS_FILE: /tmp/goreecloud-backup/secrets/kopia-sftp-known_hosts
           GOREECLOUD_BACKUP_REPOSITORY_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/repository-password
-          GOREECLOUD_BACKUP_SERVER_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/server-password
-          GOREECLOUD_BACKUP_SERVER_CONTROL_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/server-control-password
         run: |
           set -euo pipefail
-          mkdir -p             /tmp/goreecloud-backup/config             /tmp/goreecloud-backup/cache             /tmp/goreecloud-backup/logs             /tmp/goreecloud-backup/restore             /tmp/goreecloud-backup/source             /tmp/goreecloud-backup/secrets
+          mkdir -p             /tmp/goreecloud-backup/config             /tmp/goreecloud-backup/cache             /tmp/goreecloud-backup/logs             /tmp/goreecloud-backup/tmp             /tmp/goreecloud-backup/restore             /tmp/goreecloud-backup/secrets
           printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/repository-password
-          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/server-password
-          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/server-control-password
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/kopia-sftp-ed25519
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/kopia-sftp-known_hosts
 
           docker compose             --file deploy/docker/compose.yaml             config > /tmp/goreecloud-backup-compose.yaml
 
-      - name: Enforce production-safe Compose invariants
+      - name: Enforce production-safe CLI invariants
         shell: bash
         run: |
           set -euo pipefail
 
           if grep -Eq '^[[:space:]]*privileged:[[:space:]]*true' deploy/docker/compose.yaml; then
-            echo "privileged containers are prohibited in the governed base deployment" >&2
+            echo "privileged containers are prohibited" >&2
             exit 1
           fi
 
-          if grep -Eq '^[[:space:]]*ports:' deploy/docker/compose.yaml; then
-            echo "the governed base deployment must not publish a host port" >&2
+          if grep -Eq '^[[:space:]]*(ports|expose):' deploy/docker/compose.yaml; then
+            echo "the CLI replacement must not publish or expose a service port" >&2
             exit 1
           fi
 
@@ -73,14 +72,32 @@ jobs:
             exit 1
           fi
 
+          if grep -q -- 'server start' deploy/docker/compose.yaml deploy/docker/Dockerfile deploy/docker/*.sh; then
+            echo "the initial VPS replacement must remain an on-demand CLI workload" >&2
+            exit 1
+          fi
+
           if grep -Eq 'image:.*:latest([@"[:space:]]|$)' deploy/docker/compose.yaml; then
             echo "mutable latest image references are prohibited" >&2
             exit 1
           fi
 
+          grep -q 'restart: "no"' deploy/docker/compose.yaml
           grep -q 'cap_drop:' deploy/docker/compose.yaml
           grep -q 'no-new-privileges:true' deploy/docker/compose.yaml
           grep -q 'read_only: true' deploy/docker/compose.yaml
           grep -q 'GOREECLOUD_BACKUP_IMAGE:?' deploy/docker/compose.yaml
           grep -q 'GO_BUILD_IMAGE' deploy/docker/Dockerfile
           grep -q 'RUNTIME_IMAGE' deploy/docker/Dockerfile
+          grep -q 'compose.sources.yaml' deploy/docker/goreecloud-backup.sh
+          grep -q 'repository status' deploy/docker/goreecloud-backup.sh
+          grep -q 'snapshot create /source' deploy/docker/goreecloud-backup.sh
+
+      - name: Validate systemd schedule contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^Type=oneshot$' deploy/systemd/goreecloud-backup.service
+          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
