@@ -75,6 +75,8 @@ It must also provide the exact GoreeCloud Backup version, exact source commit SH
 
 A local image ID is only build evidence. Production pinning requires the published image's approved tag and immutable digest.
 
+The pull-request packaging workflow also performs a **non-release** container build. It resolves the CI base tags to exact digests for that run, builds the exact pull-request head through the same digest-enforcing build script, runs the resulting image as UID/GID 10001 with a read-only root filesystem, and retains the resolved base identities plus image ID as CI evidence. Those dynamically resolved CI digests are validation evidence only; a release candidate still requires explicitly approved release base-image identities.
+
 ## Controlled source scope
 
 The base `compose.yaml` contains no backup-source bind mounts. Before Release Candidate acceptance:
@@ -115,6 +117,27 @@ After connection, use:
 for an explicit connectivity/status check.
 
 Scheduled execution uses the default `backup` action. Repository connection is never performed implicitly by a scheduled backup attempt.
+
+## Manual recovery acceptance
+
+The scheduled `backup` action only performs the normal fail-closed snapshot path. It does **not** run full-file verification or restore on every scheduled execution.
+
+For a Release Candidate recovery gate, run:
+
+`/srv/docker/stacks/goreecloud-backup/goreecloud-backup.sh acceptance-recovery`
+
+That manual action:
+
+1. validates the declared source scope and repository/client identity;
+2. creates one exact fail-fast snapshot tagged `goreecloud:acceptance`;
+3. rejects an incomplete snapshot, a zero-content snapshot, a source-identity mismatch, or a snapshot reporting ignored/fatal errors;
+4. captures the exact manifest ID and root object ID from the candidate snapshot;
+5. runs `snapshot verify --verify-files-percent=100` against that exact manifest;
+6. restores that exact root object into a new `/restore/acceptance-<snapshot-id>` directory using atomic file writes;
+7. requires the restored directory to be non-empty;
+8. leaves the isolated restore in place for application-specific validation instead of deleting the evidence automatically.
+
+A successful command proves the engine can create, fully verify, and technically restore the exact candidate snapshot. It does **not** by itself prove application-consistent recovery for databases or other workloads that require a native recovery procedure. Those restored artifacts must still be validated through their governing application-specific recovery checks before Stable acceptance.
 
 ## Scheduling
 
