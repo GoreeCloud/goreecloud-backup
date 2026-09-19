@@ -184,27 +184,53 @@ function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
  */
 async function closePackagedApp(app) {
   const packagedProcess = app.process();
-  const processExited = waitForElectronProcessExit(packagedProcess, 10000);
 
+  // Shut down the embedded backup-engine children first. A forced Electron
+  // termination before these children exit can orphan them on Windows and keep
+  // handles open beneath the temporary application profile.
   let stopRequestTimeoutID;
-
   try {
     await Promise.race([
       app.evaluate(async ({ app: electronApplication }) => {
-        electronApplication.testHooks.stopAllServersNow();
+        await electronApplication.testHooks.stopAllServers();
       }),
       new Promise((_, reject) => {
         stopRequestTimeoutID = setTimeout(() => {
-          reject(new Error("timed out requesting embedded server shutdown"));
-        }, 2000);
+          reject(new Error("timed out waiting for embedded server shutdown"));
+        }, 7000);
       }),
     ]);
   } catch (error) {
-    // Teardown must still terminate the isolated test process even if the
-    // renderer/main-process connection is already degraded.
-    console.warn("unable to request embedded server shutdown:", error.message);
+    console.warn("graceful embedded server shutdown failed:", error.message);
+
+    try {
+      await app.evaluate(async ({ app: electronApplication }) => {
+        electronApplication.testHooks.stopAllServersNow();
+      });
+    } catch (fallbackError) {
+      console.warn(
+        "unable to request fallback embedded server shutdown:",
+        fallbackError.message,
+      );
+    }
   } finally {
     clearTimeout(stopRequestTimeoutID);
+  }
+
+  let gracefulCloseTimeoutID;
+  try {
+    await Promise.race([
+      app.close(),
+      new Promise((_, reject) => {
+        gracefulCloseTimeoutID = setTimeout(() => {
+          reject(new Error("timed out waiting for graceful Electron close"));
+        }, 5000);
+      }),
+    ]);
+  } catch (error) {
+    console.warn("graceful Electron close failed:", error.message);
+  } finally {
+    clearTimeout(gracefulCloseTimeoutID);
   }
 
   if (
@@ -214,12 +240,12 @@ async function closePackagedApp(app) {
     packagedProcess.kill("SIGKILL");
   }
 
-  await processExited;
+  await waitForElectronProcessExit(packagedProcess, 10000);
 
-  // Windows can release application-profile handles shortly after process
-  // exit. Give the OS a short bounded interval before recursive cleanup.
+  // Windows can release application-profile handles shortly after the complete
+  // Electron process tree is torn down. Keep this bounded and small.
   if (process.platform === "win32") {
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
 
@@ -263,11 +289,16 @@ test("opens repository window on first start", async () => {
   });
 
   const page = await electronApp.firstWindow();
-
   expect(page).toBeTruthy();
-  await expect(page).toHaveTitle(/GoreeCloud Backup v\d+/, {
-    timeout: 30000,
-  });
+
+  const appVersion = await electronApp.evaluate(async ({ app }) =>
+    app.getVersion(),
+  );
+  const nativeWindowTitles = await electronApp.evaluate(async ({ app }) =>
+    app.testHooks.repositoryWindowTitles(),
+  );
+
+  expect(nativeWindowTitles).toContain(`GoreeCloud Backup v${appVersion}`);
 
   await electronApp.evaluate(async ({ app }) => {
     return app.testHooks.tray.popUpContextMenu();
