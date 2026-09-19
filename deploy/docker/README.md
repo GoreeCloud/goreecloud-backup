@@ -1,48 +1,64 @@
-# GoreeCloud Backup VPS container packaging
+# GoreeCloud Backup VPS CLI/container packaging
 
-This directory defines the controlled GoreeCloud-owned container packaging and Compose surface intended for the future replacement of the current Kopia runtime on `goreecloud-vps-01`.
+This directory defines the controlled GoreeCloud-owned **headless CLI/container** packaging intended for the first replacement of the current Kopia workload on `goreecloud-vps-01`.
 
-It is a **stabilization candidate**, not evidence that a production cutover has occurred.
+It is a stabilization candidate, not evidence that a production cutover has occurred.
 
-## Safety and governance properties
+## Why the first replacement is CLI-only
+
+The authoritative GoreeCloud Kopia change record documents the known-good production workload as an on-demand CLI Compose service driven by a systemd wrapper/timer, with no published service port. The first GoreeCloud Backup replacement deliberately preserves that smaller runtime boundary instead of introducing an always-running web or API server during a recovery-system migration.
+
+A future GoreeCloud Backup web/admin service can be qualified separately. It is not required to replace the current VPS backup job.
+
+## Safety properties
 
 The deployment definition intentionally:
 
-- requires an exact GoreeCloud Backup image reference instead of `latest`;
-- requires exact tag-and-digest build and runtime base images when building the image;
-- does not use `privileged: true`;
+- requires an exact GoreeCloud Backup image tag and digest;
+- requires exact tag-and-digest build and runtime base images;
+- uses `restart: "no"` for the on-demand CLI workload;
+- publishes no host port and defines no web-server command;
+- does not use `privileged: true`, host networking, or the Docker socket;
 - drops Linux capabilities and enables `no-new-privileges`;
 - uses a read-only container root filesystem;
-- requires an explicitly validated runtime UID/GID instead of silently defaulting to root;
-- mounts the protected source tree read-only;
-- provides a separate writable restore-validation directory rather than restoring directly into production source data;
-- does not disable CSRF protection;
-- publishes no host port;
-- attaches only to a verified private Gateway Docker network;
-- reads reusable passwords from protected Compose secret files;
+- requires a runtime UID/GID selected from fresh live source-readability evidence;
+- injects the repository password from a protected host file;
+- mounts the SFTP private key and known_hosts read-only at compatibility paths;
 - keeps repository credential persistence disabled;
-- includes an authenticated server-status health check;
-- bounds container log retention.
+- keeps backup source mounts out of the base Compose file so stale documentation cannot silently expand or shrink protection scope;
+- provides a separate writable restore-validation location;
+- retains bounded local container logs.
 
-## Production target layout
+## Production target
 
-The authoritative production stack belongs under:
+The intended stack path is:
 
 `/srv/docker/stacks/goreecloud-backup/`
 
-Persistent state should use the approved GoreeCloud Docker hierarchy, such as:
+The first controlled replacement may deliberately continue using verified existing Kopia application-data or secret paths when doing so gives the safest rollback and repository-compatibility boundary. Cosmetic path renaming is not a release requirement.
 
-- `/srv/docker/appdata/goreecloud-backup/config/`
-- `/srv/docker/appdata/goreecloud-backup/cache/`
-- `/srv/docker/logs/goreecloud-backup/`
-- `/srv/docker/appdata/goreecloud-backup/restore-tests/`
-- `/srv/docker/secrets/goreecloud-backup/`
+Before deployment, create a live `compose.sources.yaml` from fresh readback of the authoritative current Kopia Compose file. Do not reconstruct the source list from old documentation.
 
-The live VPS paths, ownership, source scope, repository backend, private Gateway network, and secret delivery must be verified on the server before production use.
+## Known-good historical baseline to reverify
+
+The current GoreeCloud change record documents the prior verified baseline as:
+
+- Kopia 0.23.1;
+- `/srv/docker/stacks/kopia/compose.yaml`;
+- an on-demand CLI container with `restart: "no"`;
+- no published Kopia service port;
+- an encrypted SFTP repository stored off-VPS and reached over the NetBird private path;
+- persistent config, cache, logs, and temporary data;
+- source mounts read-only under `/source`;
+- SFTP key and known_hosts mounted read-only under `/run/secrets`;
+- a systemd service/timer attempting backup around 00:00, 06:00, 12:00, and 18:00 with up to five minutes randomized delay;
+- historically successful 100-percent snapshot verification and real isolated restore validation.
+
+That record is planning evidence only. Run `vps-preflight.sh` against the live VPS before using any of it for cutover.
 
 ## Image build
 
-The image build deliberately has no default base-image references. A release build must provide exact tag-and-digest values:
+The image build has no default base-image references. A release build must provide exact tag-and-digest values:
 
 `GO_BUILD_IMAGE=<exact-tag>@sha256:<digest>`
 
@@ -52,29 +68,39 @@ It must also provide the exact GoreeCloud Backup version, exact source commit SH
 
 `deploy/docker/build-image.sh`
 
-The resulting local image ID is only build evidence. Production pinning still requires the published image's approved tag and digest.
+A local image ID is only build evidence. Production pinning requires the published image's approved tag and immutable digest.
 
-## Compose configuration
+## Controlled source scope
 
-Copy `.env.example` to the protected authoritative environment file only in the approved VPS stack directory, then replace every placeholder from verified live state.
+The base `compose.yaml` contains no backup-source bind mounts. Before Release Candidate acceptance:
 
-Do not place active passwords in the environment file. The Compose definition reads the repository, UI-server, and server-control passwords from protected host files through Compose secrets.
+1. run the read-only VPS preflight;
+2. read the live Kopia Compose bind mounts;
+3. compare them with current application/recovery requirements;
+4. create `compose.sources.yaml` with only the verified required source mounts;
+5. keep every source mount read-only;
+6. preserve intentional exclusions such as secrets and live database files unless a separately validated application-consistent method replaces them.
 
-A local-filesystem backup repository may require an additional backend-specific read/write mount. Do not invent that mount in source control: preserve the existing repository architecture until the live repository type and path are verified, then document the minimum required mount in the authoritative VPS deployment.
+## Scheduling
+
+The included systemd unit/timer files model the historically documented four-times-daily cadence. They are templates, not proof of the live current schedule. Verify the existing timer before installing or enabling the GoreeCloud units.
+
+The wrapper validates Compose without resolving environment values, proves repository access, and only then creates a snapshot of `/source`.
 
 ## Cutover boundary
 
-This packaging must not replace the current Kopia container until all of the following are proven for one exact Release Candidate:
+Do not replace or retire the current Kopia runtime until one exact GoreeCloud Backup Release Candidate has all applicable source/release gates and the live VPS completes all of these:
 
-1. mandatory exact-head source and build checks pass;
-2. the image is built and pinned by exact release tag and digest;
-3. the current Kopia repository type, configuration, credentials path, schedules, source paths, and recovery points are inventoried from the live VPS;
-4. a pre-cutover recovery point is created and independently verified;
-5. GoreeCloud Backup can open the intended repository without destructive migration;
-6. representative backup, integrity verification, isolated restore, and restored-data validation succeed;
-7. Gateway/private-network access, authentication, monitoring, logging, and notifications are verified;
-8. rollback to the retained Kopia runtime is tested or otherwise credibly demonstrated;
-9. only then is the old runtime stopped and GoreeCloud Backup made authoritative;
-10. Kopia is not retired or deleted until post-cutover observation and Stable qualification permit it.
+1. capture fresh current Kopia Compose, image/digest, source mounts, application-data paths, secret-file paths, systemd units, repository status, and snapshot state;
+2. create a fresh pre-cutover Kopia recovery point;
+3. run required integrity verification, including 100-percent verification where the governed recovery procedure requires it;
+4. complete an isolated representative restore and validate restored data;
+5. stage the exact GoreeCloud Backup image by tag and digest without destructive repository migration;
+6. prove the GoreeCloud binary can read the existing repository and existing recovery points;
+7. create a new GoreeCloud Backup snapshot, verify it, and restore representative data;
+8. verify the scheduled job, failure behavior, logging, monitoring/notification path, and recovery evidence;
+9. demonstrate a credible rollback to the retained Kopia image/configuration;
+10. only then disable the Kopia timer and enable the GoreeCloud Backup timer;
+11. observe post-cutover operation before retiring old Kopia deployment material.
 
-The existing production recovery points remain authoritative until those gates are satisfied.
+Existing production recovery points remain authoritative until these gates are satisfied.
