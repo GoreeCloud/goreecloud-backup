@@ -86,5 +86,5 @@ func (m DatasetScopeMapping) validateForDataset(datasetID string) error {
 // storage for that authoritative mapping is intentionally a separate runtime
 // concern from this contract type.
 type DatasetScopeResolver interface {
-	ResolveBackupScope(context.Context, string) (DatasetScopeMapping, error)
+	ResolveBackupScope(ctx context.Context, datasetID string) (DatasetScopeMapping, error)
 }
