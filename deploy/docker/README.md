@@ -122,7 +122,9 @@ Scheduled execution uses the default `backup` action. Repository connection is n
 
 The privileged Release Candidate workflow is `.github/workflows/goreecloud-vps-release.yml`. It is **manual-only** and declares the protected GitHub environment `goreecloud-backup-release`.
 
-The workflow intentionally cannot create a source tag. Before it can publish an RC:
+The workflow intentionally cannot create a source tag. It also reads GitHub's authoritative branch/environment state at execution time and fails unless the current default branch is protected with enforced required checks and the `goreecloud-backup-release` environment has a non-empty required-reviewer rule. An unavailable or unreadable control is a failure, not a pass.
+
+Before it can publish an RC:
 
 1. the exact candidate must already be the current accepted default-branch HEAD;
 2. an annotated `v<version>-rc.<n>` tag must already exist at that exact commit and contain a PGP or SSH signature block;
