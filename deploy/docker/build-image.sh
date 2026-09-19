@@ -25,17 +25,16 @@ require_digest_reference "$GO_BUILD_IMAGE" GO_BUILD_IMAGE
 require_digest_reference "$RUNTIME_IMAGE" RUNTIME_IMAGE
 
 case "$GOREECLOUD_BACKUP_COMMIT" in
-  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
-    if [ "${#GOREECLOUD_BACKUP_COMMIT}" -ne 40 ]; then
-      echo "GOREECLOUD_BACKUP_COMMIT must be a full 40-character commit SHA" >&2
-      exit 1
-    fi
-    ;;
-  *)
+  ""|*[!0-9a-f]*)
     echo "GOREECLOUD_BACKUP_COMMIT must be a lowercase hexadecimal commit SHA" >&2
     exit 1
     ;;
 esac
+
+if [ "${#GOREECLOUD_BACKUP_COMMIT}" -ne 40 ]; then
+  echo "GOREECLOUD_BACKUP_COMMIT must be a full 40-character commit SHA" >&2
+  exit 1
+fi
 
 case "$GOREECLOUD_BACKUP_IMAGE_TAG" in
   *:latest|latest)
