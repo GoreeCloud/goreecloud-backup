@@ -133,6 +133,97 @@ function waitForBackupEngineToStartup() {
   });
 }
 
+/**
+ * Waits until the packaged Electron child process has actually exited.
+ *
+ * Playwright may finish its close request before Windows releases every handle
+ * beneath the temporary application profile. Waiting for the child-process
+ * exit/close signal keeps test cleanup from racing those handle releases.
+ *
+ * @param {import("child_process").ChildProcess} childProcess
+ * @param {number} timeoutMs
+ * @returns {Promise<void>}
+ */
+function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
+  if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    let timeoutID;
+
+    const cleanup = () => {
+      clearTimeout(timeoutID);
+      childProcess.off("exit", onExit);
+      childProcess.off("close", onExit);
+    };
+
+    const onExit = () => {
+      cleanup();
+      resolve();
+    };
+
+    timeoutID = setTimeout(() => {
+      cleanup();
+      reject(new Error("timed out waiting for packaged Electron process exit"));
+    }, timeoutMs);
+
+    childProcess.once("exit", onExit);
+    childProcess.once("close", onExit);
+  });
+}
+
+/**
+ * Closes the packaged Electron test process without allowing teardown to hang
+ * indefinitely. The embedded backup servers are stopped first. Playwright gets
+ * a bounded graceful-close window; if the packaged process is still alive, the
+ * test harness terminates it and still waits for the OS-level exit signal
+ * before removing the temporary profile.
+ *
+ * @param {Electron.App} app
+ * @returns {Promise<void>}
+ */
+async function closePackagedApp(app) {
+  const packagedProcess = app.process();
+  const processExited = waitForElectronProcessExit(packagedProcess, 10000);
+
+  await app.evaluate(async ({ app: electronApplication }) => {
+    await electronApplication.testHooks.stopAllServers();
+  });
+
+  let gracefulCloseTimedOut = false;
+  let closeTimeoutID;
+
+  try {
+    await Promise.race([
+      app.close(),
+      new Promise((_, reject) => {
+        closeTimeoutID = setTimeout(() => {
+          reject(new Error("timed out waiting for Playwright Electron close"));
+        }, 5000);
+      }),
+    ]);
+  } catch (error) {
+    if (error.message !== "timed out waiting for Playwright Electron close") {
+      throw error;
+    }
+
+    gracefulCloseTimedOut = true;
+  } finally {
+    clearTimeout(closeTimeoutID);
+  }
+
+  if (
+    gracefulCloseTimedOut &&
+    packagedProcess.exitCode === null &&
+    packagedProcess.signalCode === null
+  ) {
+    packagedProcess.kill();
+  }
+
+  await processExited;
+}
+
 test.beforeAll(() => {
   const appDir = getGoreeCloudBackupDir();
   expect(appDir).not.toBeNull();
@@ -154,11 +245,9 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   if (electronApp) {
-    await electronApp.evaluate(async ({ app }) => {
-      await app.testHooks.stopAllServers();
-    });
-    await electronApp.close();
+    await closePackagedApp(electronApp);
   }
+
   fs.rmSync(tmpAppDataDir, {
     recursive: true,
     force: true,
