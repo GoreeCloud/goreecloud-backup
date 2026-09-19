@@ -173,6 +173,57 @@ function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
   });
 }
 
+/**
+ * Closes the packaged Electron test process without allowing teardown to hang
+ * indefinitely. The embedded backup servers are stopped first. Playwright gets
+ * a bounded graceful-close window; if the packaged process is still alive, the
+ * test harness terminates it and still waits for the OS-level exit signal
+ * before removing the temporary profile.
+ *
+ * @param {Electron.App} app
+ * @returns {Promise<void>}
+ */
+async function closePackagedApp(app) {
+  const packagedProcess = app.process();
+  const processExited = waitForElectronProcessExit(packagedProcess, 10000);
+
+  await app.evaluate(async ({ app: electronApplication }) => {
+    await electronApplication.testHooks.stopAllServers();
+  });
+
+  let gracefulCloseTimedOut = false;
+  let closeTimeoutID;
+
+  try {
+    await Promise.race([
+      app.close(),
+      new Promise((_, reject) => {
+        closeTimeoutID = setTimeout(() => {
+          reject(new Error("timed out waiting for Playwright Electron close"));
+        }, 5000);
+      }),
+    ]);
+  } catch (error) {
+    if (error.message !== "timed out waiting for Playwright Electron close") {
+      throw error;
+    }
+
+    gracefulCloseTimedOut = true;
+  } finally {
+    clearTimeout(closeTimeoutID);
+  }
+
+  if (
+    gracefulCloseTimedOut &&
+    packagedProcess.exitCode === null &&
+    packagedProcess.signalCode === null
+  ) {
+    packagedProcess.kill();
+  }
+
+  await processExited;
+}
+
 test.beforeAll(() => {
   const appDir = getGoreeCloudBackupDir();
   expect(appDir).not.toBeNull();
@@ -194,14 +245,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   if (electronApp) {
-    const packagedProcess = electronApp.process();
-    const processExited = waitForElectronProcessExit(packagedProcess);
-
-    await electronApp.evaluate(async ({ app }) => {
-      await app.testHooks.stopAllServers();
-    });
-    await electronApp.close();
-    await processExited;
+    await closePackagedApp(electronApp);
   }
 
   fs.rmSync(tmpAppDataDir, {
