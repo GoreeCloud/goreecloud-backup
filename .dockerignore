@@ -1,0 +1,14 @@
+.git
+.github
+.tmp
+dist
+coverage.txt
+app/node_modules
+site/node_modules
+**/.env
+**/.env.*
+!deploy/docker/.env.example
+**/*secret*
+**/*password*
+**/*.pem
+**/*.key
