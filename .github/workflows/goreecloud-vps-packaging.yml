@@ -1,0 +1,86 @@
+name: GoreeCloud VPS Packaging
+
+on:
+  pull_request:
+    paths:
+      - ".dockerignore"
+      - "deploy/docker/**"
+      - ".github/workflows/goreecloud-vps-packaging.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate governed VPS packaging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n deploy/docker/entrypoint.sh
+          sh -n deploy/docker/healthcheck.sh
+          sh -n deploy/docker/build-image.sh
+
+      - name: Validate Compose rendering
+        shell: bash
+        env:
+          GOREECLOUD_BACKUP_IMAGE: ghcr.io/goreecloud/goreecloud-backup:0.0.0-ci@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          GOREECLOUD_BACKUP_UID: "10001"
+          GOREECLOUD_BACKUP_GID: "10001"
+          GOREECLOUD_BACKUP_CONFIG_DIR: /tmp/goreecloud-backup/config
+          GOREECLOUD_BACKUP_CACHE_DIR: /tmp/goreecloud-backup/cache
+          GOREECLOUD_BACKUP_LOG_DIR: /tmp/goreecloud-backup/logs
+          GOREECLOUD_BACKUP_RESTORE_DIR: /tmp/goreecloud-backup/restore
+          GOREECLOUD_BACKUP_SOURCE_ROOT: /tmp/goreecloud-backup/source
+          GOREECLOUD_GATEWAY_NETWORK: goreecloud-gateway-ci
+          GOREECLOUD_BACKUP_SERVER_USERNAME: goreecloud-backup-ci
+          GOREECLOUD_BACKUP_SERVER_CONTROL_USERNAME: server-control
+          GOREECLOUD_BACKUP_REPOSITORY_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/repository-password
+          GOREECLOUD_BACKUP_SERVER_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/server-password
+          GOREECLOUD_BACKUP_SERVER_CONTROL_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/server-control-password
+        run: |
+          set -euo pipefail
+          mkdir -p             /tmp/goreecloud-backup/config             /tmp/goreecloud-backup/cache             /tmp/goreecloud-backup/logs             /tmp/goreecloud-backup/restore             /tmp/goreecloud-backup/source             /tmp/goreecloud-backup/secrets
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/repository-password
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/server-password
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/server-control-password
+
+          docker compose             --file deploy/docker/compose.yaml             config > /tmp/goreecloud-backup-compose.yaml
+
+      - name: Enforce production-safe Compose invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -Eq '^[[:space:]]*privileged:[[:space:]]*true' deploy/docker/compose.yaml; then
+            echo "privileged containers are prohibited in the governed base deployment" >&2
+            exit 1
+          fi
+
+          if grep -Eq '^[[:space:]]*ports:' deploy/docker/compose.yaml; then
+            echo "the governed base deployment must not publish a host port" >&2
+            exit 1
+          fi
+
+          if grep -q -- '--disable-csrf-token-checks' deploy/docker/compose.yaml deploy/docker/Dockerfile deploy/docker/*.sh; then
+            echo "CSRF bypass must not appear in production packaging" >&2
+            exit 1
+          fi
+
+          if grep -Eq 'image:.*:latest([@"[:space:]]|$)' deploy/docker/compose.yaml; then
+            echo "mutable latest image references are prohibited" >&2
+            exit 1
+          fi
+
+          grep -q 'cap_drop:' deploy/docker/compose.yaml
+          grep -q 'no-new-privileges:true' deploy/docker/compose.yaml
+          grep -q 'read_only: true' deploy/docker/compose.yaml
+          grep -q 'GOREECLOUD_BACKUP_IMAGE:?' deploy/docker/compose.yaml
+          grep -q 'GO_BUILD_IMAGE' deploy/docker/Dockerfile
+          grep -q 'RUNTIME_IMAGE' deploy/docker/Dockerfile
