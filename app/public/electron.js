@@ -168,6 +168,16 @@ function showRepoWindow(repositoryID) {
 
   // Create the browser window
   let repositoryWindow = new BrowserWindow(windowOptions);
+
+  // The GoreeCloud desktop shell owns the product-level window identity even
+  // while the embedded backup interface remains an inherited compatibility
+  // component. Prevent embedded page metadata from reverting the native window
+  // title to upstream branding.
+  repositoryWindow.on("page-title-updated", (event) => {
+    event.preventDefault();
+    repositoryWindow.setTitle(`GoreeCloud Backup v${app.getVersion()}`);
+  });
+
   // If the window was maximized, maximize it
   if (maximized) {
     repositoryWindow.maximize();
