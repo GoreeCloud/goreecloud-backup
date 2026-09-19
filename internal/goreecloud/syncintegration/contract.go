@@ -21,6 +21,8 @@ import (
 	"github.com/kopia/kopia/internal/goreecloud/protection"
 )
 
+var errInvalidSyncContract = errors.New("invalid backup-to-sync contract")
+
 // ContractVersion is the source-level version of this pre-stabilization
 // Backup-to-Sync contract. It is not a public compatibility promise.
 const ContractVersion = "goreecloud.backup-sync/v1alpha1"
@@ -53,7 +55,7 @@ func ValidateOperation(op Operation) error {
 	case OperationReadProtection, OperationRequestCheckpoint, OperationCoordinateRestore:
 		return nil
 	default:
-		return fmt.Errorf("operation %q is not permitted by the Backup-to-Sync contract", op)
+		return fmt.Errorf("%w: operation %q is not permitted by the Backup-to-Sync contract", errInvalidSyncContract, op)
 	}
 }
 
@@ -94,7 +96,7 @@ func NewProtectionView(datasetID string, evaluatedAt time.Time, evaluation prote
 	}
 
 	if !validProtectionState(evaluation.State) {
-		return ProtectionView{}, fmt.Errorf("invalid protection state %q", evaluation.State)
+		return ProtectionView{}, fmt.Errorf("%w: invalid protection state %q", errInvalidSyncContract, evaluation.State)
 	}
 
 	return ProtectionView{
@@ -153,7 +155,7 @@ type CheckpointRequest struct {
 // It does not authorize the caller or execute a backup.
 func (r CheckpointRequest) Validate() error {
 	if r.ContractVersion != ContractVersion {
-		return fmt.Errorf("unsupported contract version %q", r.ContractVersion)
+		return fmt.Errorf("%w: unsupported contract version %q", errInvalidSyncContract, r.ContractVersion)
 	}
 
 	if err := validateOpaqueIdentifier("request ID", r.RequestID); err != nil {
@@ -172,7 +174,7 @@ func (r CheckpointRequest) Validate() error {
 	case CheckpointPreChange, CheckpointPreMigration:
 		return nil
 	default:
-		return fmt.Errorf("checkpoint purpose %q is not permitted by the Backup-to-Sync contract", r.Purpose)
+		return fmt.Errorf("%w: checkpoint purpose %q is not permitted by the Backup-to-Sync contract", errInvalidSyncContract, r.Purpose)
 	}
 }
 
@@ -246,7 +248,7 @@ func PlanRestoreCoordination(datasetID string, syncManaged bool, availability Sy
 	}
 
 	if !availability.valid() {
-		return RestoreCoordination{}, fmt.Errorf("invalid Sync availability %q", availability)
+		return RestoreCoordination{}, fmt.Errorf("%w: invalid Sync availability %q", errInvalidSyncContract, availability)
 	}
 
 	plan := RestoreCoordination{
@@ -282,20 +284,20 @@ func PlanRestoreCoordination(datasetID string, syncManaged bool, availability Sy
 
 func validateOpaqueIdentifier(name, value string) error {
 	if !utf8.ValidString(value) {
-		return fmt.Errorf("%s must be valid UTF-8", name)
+		return fmt.Errorf("%w: %s must be valid UTF-8", errInvalidSyncContract, name)
 	}
 
 	if strings.TrimSpace(value) == "" {
-		return fmt.Errorf("%s must not be empty", name)
+		return fmt.Errorf("%w: %s must not be empty", errInvalidSyncContract, name)
 	}
 
 	if len(value) > maxOpaqueIdentifierBytes {
-		return fmt.Errorf("%s exceeds %d bytes", name, maxOpaqueIdentifierBytes)
+		return fmt.Errorf("%w: %s exceeds %d bytes", errInvalidSyncContract, name, maxOpaqueIdentifierBytes)
 	}
 
 	for _, r := range value {
 		if unicode.IsControl(r) {
-			return fmt.Errorf("%s must not contain control characters", name)
+			return fmt.Errorf("%w: %s must not contain control characters", errInvalidSyncContract, name)
 		}
 	}
 
