@@ -347,31 +347,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '^Type=oneshot
-          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Type=oneshot$' deploy/systemd/goreecloud-backup.service
+          grep -q '^TimeoutStartSec=infinity$' deploy/systemd/goreecloud-backup.service
+          grep -q '^StandardOutput=journal$' deploy/systemd/goreecloud-backup.service
+          grep -q '^StandardError=journal$' deploy/systemd/goreecloud-backup.service
+          grep -q '^SyslogIdentifier=goreecloud-backup$' deploy/systemd/goreecloud-backup.service
+          grep -q '^OnCalendar=\*-\*-\* 00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
           grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
           grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
- deploy/systemd/goreecloud-backup.service
-          grep -q '^TimeoutStartSec=infinity
-          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
- deploy/systemd/goreecloud-backup.service
-          grep -q '^StandardOutput=journal
-          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
- deploy/systemd/goreecloud-backup.service
-          grep -q '^StandardError=journal
-          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
- deploy/systemd/goreecloud-backup.service
-          grep -q '^SyslogIdentifier=goreecloud-backup
-          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
- deploy/systemd/goreecloud-backup.service
-          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
-          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Unit=goreecloud-backup.service$' deploy/systemd/goreecloud-backup.timer
