@@ -31,7 +31,7 @@ func (d AuthorizationDecision) validateForCheckpoint(request CheckpointRequest) 
 	}
 
 	if d.DecisionRef != request.AuthorizationDecisionRef {
-		return errors.New("authorization decision reference does not match checkpoint request")
+		return errAuthorizationDecisionMismatch
 	}
 
 	if !d.Allowed {
@@ -90,7 +90,7 @@ func (s CheckpointSubmission) validateForRequest(request AuthorizedCheckpointReq
 	}
 
 	if s.RequestID != request.RequestID {
-		return errors.New("checkpoint submission request ID does not match request")
+		return errCheckpointSubmissionRequestMismatch
 	}
 
 	if err := validateOpaqueIdentifier("checkpoint operation ID", s.OperationID); err != nil {
@@ -102,7 +102,7 @@ func (s CheckpointSubmission) validateForRequest(request AuthorizedCheckpointReq
 	}
 
 	if s.DatasetID != request.DatasetID {
-		return errors.New("checkpoint submission dataset ID does not match request")
+		return errCheckpointSubmissionDatasetMismatch
 	}
 
 	if err := validateOpaqueIdentifier("checkpoint submission Backup scope ID", s.BackupScopeID); err != nil {
@@ -110,11 +110,11 @@ func (s CheckpointSubmission) validateForRequest(request AuthorizedCheckpointReq
 	}
 
 	if s.BackupScopeID != request.BackupScopeID {
-		return errors.New("checkpoint submission Backup scope ID does not match resolved scope")
+		return errCheckpointSubmissionScopeMismatch
 	}
 
 	if s.AcceptedAt.IsZero() {
-		return errors.New("checkpoint submission acceptance time must not be zero")
+		return errCheckpointSubmissionAcceptedAtZero
 	}
 
 	return nil
@@ -140,15 +140,15 @@ type CheckpointService struct {
 // mapping, and a Backup-owned checkpoint executor are all provided.
 func NewCheckpointService(authorizer CheckpointAuthorizer, resolver DatasetScopeResolver, executor CheckpointExecutor) (*CheckpointService, error) {
 	if authorizer == nil {
-		return nil, errors.New("checkpoint authorizer is required")
+		return nil, errCheckpointAuthorizerRequired
 	}
 
 	if resolver == nil {
-		return nil, errors.New("dataset scope resolver is required")
+		return nil, errDatasetScopeResolverRequired
 	}
 
 	if executor == nil {
-		return nil, errors.New("checkpoint executor is required")
+		return nil, errCheckpointExecutorRequired
 	}
 
 	return &CheckpointService{authorizer: authorizer, resolver: resolver, executor: executor}, nil
@@ -167,11 +167,11 @@ func NewCheckpointService(authorizer CheckpointAuthorizer, resolver DatasetScope
 // all fail closed.
 func (s *CheckpointService) RequestCheckpoint(ctx context.Context, request CheckpointRequest) (CheckpointSubmission, error) {
 	if s == nil || s.authorizer == nil || s.resolver == nil || s.executor == nil {
-		return CheckpointSubmission{}, errors.New("checkpoint service is not initialized")
+		return CheckpointSubmission{}, errCheckpointServiceNotInitialized
 	}
 
 	if ctx == nil {
-		return CheckpointSubmission{}, errors.New("context is required")
+		return CheckpointSubmission{}, errContextRequired
 	}
 
 	if err := ValidateOperation(OperationRequestCheckpoint); err != nil {

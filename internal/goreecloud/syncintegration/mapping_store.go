@@ -50,12 +50,12 @@ type FileDatasetScopeStore struct {
 // does not create the file or its parent directory.
 func NewFileDatasetScopeStore(path string) (*FileDatasetScopeStore, error) {
 	if path == "" {
-		return nil, errors.New("dataset-scope mapping store path must not be empty")
+		return nil, errMappingStorePathEmpty
 	}
 
 	clean := filepath.Clean(path)
 	if clean == "." || filepath.Base(clean) == "." || filepath.Base(clean) == string(filepath.Separator) {
-		return nil, errors.New("dataset-scope mapping store path must identify a file")
+		return nil, errMappingStorePathInvalid
 	}
 
 	return &FileDatasetScopeStore{path: clean, mu: sync.RWMutex{}}, nil
@@ -66,11 +66,11 @@ func NewFileDatasetScopeStore(path string) (*FileDatasetScopeStore, error) {
 // not part of the Backup-to-Sync Operation allowlist.
 func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []DatasetScopeMapping) error {
 	if s == nil || s.path == "" {
-		return errors.New("dataset-scope mapping store is not initialized")
+		return errMappingStoreNotInitialized
 	}
 
 	if ctx == nil {
-		return errors.New("context is required")
+		return errContextRequired
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -108,11 +108,11 @@ func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []
 // remains distinguishable from an absent mapping.
 func (s *FileDatasetScopeStore) ResolveBackupScope(ctx context.Context, datasetID string) (DatasetScopeMapping, error) {
 	if s == nil || s.path == "" {
-		return DatasetScopeMapping{}, errors.New("dataset-scope mapping store is not initialized")
+		return DatasetScopeMapping{}, errMappingStoreNotInitialized
 	}
 
 	if ctx == nil {
-		return DatasetScopeMapping{}, errors.New("context is required")
+		return DatasetScopeMapping{}, errContextRequired
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -151,11 +151,11 @@ func (s *FileDatasetScopeStore) loadMappings() ([]DatasetScopeMapping, error) {
 	}
 
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("dataset-scope mapping store must be a regular file")
+		return nil, errMappingStoreNotRegularFile
 	}
 
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return nil, errors.New("dataset-scope mapping store permissions must not grant group or other access")
+		return nil, errMappingStorePermissions
 	}
 
 	payload, err := os.ReadFile(s.path)
@@ -212,7 +212,7 @@ func requireJSONEOF(decoder *json.Decoder) error {
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return errors.New("trailing JSON value is not permitted")
+			return errTrailingJSONValue
 		}
 
 		return fmt.Errorf("decode trailing JSON value: %w", err)

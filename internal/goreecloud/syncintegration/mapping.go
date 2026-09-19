@@ -54,7 +54,7 @@ func (m DatasetScopeMapping) Validate() error {
 	}
 
 	if m.UpdatedAt.IsZero() {
-		return errors.New("mapping update time must not be zero")
+		return errMappingUpdateTimeZero
 	}
 
 	return nil
@@ -70,7 +70,7 @@ func (m DatasetScopeMapping) validateForDataset(datasetID string) error {
 	}
 
 	if m.DatasetID != datasetID {
-		return errors.New("resolved mapping dataset ID does not match checkpoint request")
+		return errResolvedMappingDatasetMismatch
 	}
 
 	if !m.Active {
