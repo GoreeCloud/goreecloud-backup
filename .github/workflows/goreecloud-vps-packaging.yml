@@ -42,6 +42,7 @@ jobs:
           sh -n deploy/docker/vps-preflight.sh
           python3 -m py_compile deploy/docker/validate-source-scope.py
           python3 -m py_compile deploy/docker/validate-snapshot-evidence.py
+          python3 -m py_compile deploy/docker/record-status.py
 
       - name: Validate Compose rendering
         shell: bash
@@ -167,6 +168,46 @@ jobs:
             exit 1
           fi
 
+          status_dir=/tmp/goreecloud-backup-status-test
+          operation_id="$(
+            python3 deploy/docker/record-status.py \
+              --status-file "$status_dir/status.json" \
+              --events-file "$status_dir/events.jsonl" \
+              --operation backup \
+              started
+          )"
+
+          python3 deploy/docker/record-status.py \
+            --status-file "$status_dir/status.json" \
+            --events-file "$status_dir/events.jsonl" \
+            --operation backup \
+            --operation-id "$operation_id" \
+            --snapshot-id 0123456789abcdef0123456789abcdef \
+            succeeded
+
+          python3 - "$status_dir/status.json" "$status_dir/events.jsonl" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              status = json.load(handle)
+
+          assert status["protectionState"] == "Configured"
+          assert status["monitoringIntegrationState"] == "NotYetAccepted"
+          assert status["notificationIntegrationState"] == "NotYetAccepted"
+          assert status["lastSuccessfulBackup"]["snapshotId"] == (
+              "0123456789abcdef0123456789abcdef"
+          )
+          assert "currentOperation" not in status
+
+          with open(sys.argv[2], encoding="utf-8") as handle:
+              events = [json.loads(line) for line in handle if line.strip()]
+
+          assert events[-2]["eventName"].endswith(".started")
+          assert events[-1]["eventName"].endswith(".succeeded")
+          assert all("message" not in event for event in events)
+          PY
+
       - name: Enforce production-safe CLI invariants
         shell: bash
         run: |
@@ -233,6 +274,9 @@ jobs:
           grep -q 'validate-snapshot-evidence.py' deploy/docker/goreecloud-backup.sh
           grep -q -- '--verify-files-percent=100' deploy/docker/goreecloud-backup.sh
           grep -q 'snapshot restore' deploy/docker/goreecloud-backup.sh
+          grep -q 'record-status.py' deploy/docker/goreecloud-backup.sh
+          grep -q 'goreecloud.backup.vps.operation' deploy/docker/record-status.py
+          grep -q 'NotYetAccepted' deploy/docker/record-status.py
 
           if grep -q -- '--sftp-password\|--key-data\|--known-hosts-data' deploy/docker/entrypoint.sh deploy/docker/goreecloud-backup.sh; then
             echo "repository bootstrap must not place reusable secret material in command arguments" >&2
@@ -303,7 +347,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '^Type=oneshot$' deploy/systemd/goreecloud-backup.service
+          grep -q '^Type=oneshot
+          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
+ deploy/systemd/goreecloud-backup.service
+          grep -q '^TimeoutStartSec=infinity
+          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
+ deploy/systemd/goreecloud-backup.service
+          grep -q '^StandardOutput=journal
+          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
+ deploy/systemd/goreecloud-backup.service
+          grep -q '^StandardError=journal
+          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
+ deploy/systemd/goreecloud-backup.service
+          grep -q '^SyslogIdentifier=goreecloud-backup
+          grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
+ deploy/systemd/goreecloud-backup.service
           grep -q '^OnCalendar=.*00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
           grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
           grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer

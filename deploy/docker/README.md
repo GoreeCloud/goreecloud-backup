@@ -158,6 +158,25 @@ That manual action:
 
 A successful command proves the engine can create, fully verify, and technically restore the exact candidate snapshot. It does **not** by itself prove application-consistent recovery for databases or other workloads that require a native recovery procedure. Those restored artifacts must still be validated through their governing application-specific recovery checks before Stable acceptance.
 
+## Headless observability status
+
+The VPS wrapper emits a sanitized GoreeCloud-owned status seam without embedding a notification provider.
+
+By default it maintains:
+
+- `/srv/docker/stacks/goreecloud-backup/status/status.json` — atomic current status;
+- `/srv/docker/stacks/goreecloud-backup/status/events.jsonl` — a bounded history of the most recent 512 structured events.
+
+The records use server-generated operation IDs and stable event names. They may include an exact snapshot manifest ID but do not contain repository passwords, encryption material, SFTP credentials, protected file contents, protected file names, source host paths, raw exception text, or notification tokens.
+
+A successful scheduled snapshot remains `protectionState: Configured`; it is **not** promoted to `Protected` merely because snapshot creation succeeded. A technical 100-percent-verified restore records `TechnicalRestoreCompletedPendingApplicationValidation`, not `RestoreVerified`. Failed operations set the local state to `Degraded`.
+
+The status explicitly reports monitoring and notification integration as `NotYetAccepted` until independent GoreeCloud Monitor and GoreeCloud Notify integration is implemented and accepted. This prevents the local producer from masquerading as the independent monitoring authority.
+
+The wrapper also takes a non-blocking host `flock` before any operation so manual and scheduled backup/recovery commands cannot mutate the same local runtime state concurrently.
+
+The systemd service writes stdout/stderr to journald under `SyslogIdentifier=goreecloud-backup` and sets `TimeoutStartSec=infinity` because a legitimate backup or full verification may exceed the system manager's ordinary service-start timeout. Missed-run detection, alert delivery, and external status consumption remain Monitor/Notify integration work and must be accepted before unattended scheduling is considered production-ready.
+
 ## Scheduling
 
 The included systemd unit/timer files model the historically used four-times-daily cadence as a candidate schedule. Because the old Kopia timer has already been retired, the schedule must be accepted against current recovery objectives before the GoreeCloud Backup timer is enabled.

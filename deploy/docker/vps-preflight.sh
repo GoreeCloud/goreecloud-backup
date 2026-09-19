@@ -12,13 +12,14 @@ TARGET_SOURCES_FILE="${TARGET_STACK_DIR}/compose.sources.yaml"
 TARGET_ENV_FILE="${TARGET_STACK_DIR}/.env"
 TARGET_SOURCE_SCOPE_VALIDATOR="${TARGET_STACK_DIR}/validate-source-scope.py"
 TARGET_SNAPSHOT_EVIDENCE_VALIDATOR="${TARGET_STACK_DIR}/validate-snapshot-evidence.py"
+TARGET_STATUS_RECORDER="${TARGET_STACK_DIR}/record-status.py"
 
 echo "=== GoreeCloud Backup VPS replacement preflight ==="
 echo "Read-only: this script does not stop services, change repositories, modify timers, or print secret contents."
 
 echo
 echo "=== Required host tooling ==="
-for required_command in docker python3 systemctl; do
+for required_command in docker python3 systemctl flock; do
   if command -v "$required_command" >/dev/null 2>&1; then
     echo "command_available=$required_command"
   else
@@ -77,7 +78,7 @@ done
 echo
 echo "=== GoreeCloud Backup target material ==="
 
-for required_file in "$TARGET_COMPOSE_FILE" "$TARGET_SOURCES_FILE" "$TARGET_ENV_FILE" "$TARGET_SOURCE_SCOPE_VALIDATOR" "$TARGET_SNAPSHOT_EVIDENCE_VALIDATOR"; do
+for required_file in "$TARGET_COMPOSE_FILE" "$TARGET_SOURCES_FILE" "$TARGET_ENV_FILE" "$TARGET_SOURCE_SCOPE_VALIDATOR" "$TARGET_SNAPSHOT_EVIDENCE_VALIDATOR" "$TARGET_STATUS_RECORDER"; do
   if [ -r "$required_file" ]; then
     echo "target_file_readable=$required_file"
   else
