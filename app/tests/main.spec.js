@@ -187,41 +187,37 @@ async function closePackagedApp(app) {
   const packagedProcess = app.process();
   const processExited = waitForElectronProcessExit(packagedProcess, 10000);
 
-  await app.evaluate(async ({ app: electronApplication }) => {
-    await electronApplication.testHooks.stopAllServers();
-  });
-
-  let gracefulCloseTimedOut = false;
-  let closeTimeoutID;
-
   try {
     await Promise.race([
-      app.close(),
+      app.evaluate(async ({ app: electronApplication }) => {
+        electronApplication.testHooks.stopAllServersNow();
+      }),
       new Promise((_, reject) => {
-        closeTimeoutID = setTimeout(() => {
-          reject(new Error("timed out waiting for Playwright Electron close"));
-        }, 5000);
+        setTimeout(() => {
+          reject(new Error("timed out requesting embedded server shutdown"));
+        }, 2000);
       }),
     ]);
   } catch (error) {
-    if (error.message !== "timed out waiting for Playwright Electron close") {
-      throw error;
-    }
-
-    gracefulCloseTimedOut = true;
-  } finally {
-    clearTimeout(closeTimeoutID);
+    // Teardown must still terminate the isolated test process even if the
+    // renderer/main-process connection is already degraded.
+    console.warn("unable to request embedded server shutdown:", error.message);
   }
 
   if (
-    gracefulCloseTimedOut &&
     packagedProcess.exitCode === null &&
     packagedProcess.signalCode === null
   ) {
-    packagedProcess.kill();
+    packagedProcess.kill("SIGKILL");
   }
 
   await processExited;
+
+  // Windows can release application-profile handles shortly after process
+  // exit. Give the OS a short bounded interval before recursive cleanup.
+  if (process.platform === "win32") {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
 }
 
 test.beforeAll(() => {
@@ -251,8 +247,8 @@ test.afterEach(async () => {
   fs.rmSync(tmpAppDataDir, {
     recursive: true,
     force: true,
-    maxRetries: 10,
-    retryDelay: 100,
+    maxRetries: 40,
+    retryDelay: 250,
   });
 });
 
