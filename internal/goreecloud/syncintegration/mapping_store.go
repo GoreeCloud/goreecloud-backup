@@ -20,11 +20,11 @@ const (
 	maxDatasetScopeMappings  = 4096
 )
 
+const mappingStoreFileMode = 0o600
+
 // ErrDatasetScopeStoreNotInitialized indicates that the configured durable
 // mapping file does not yet exist. This is kept distinct from an initialized
 // store that simply has no mapping for the requested dataset.
-const mappingStoreFileMode = 0o600
-
 var ErrDatasetScopeStoreNotInitialized = errors.New("backup dataset-scope mapping store is not initialized")
 
 type datasetScopeStoreFile struct {
@@ -215,7 +215,7 @@ func requireJSONEOF(decoder *json.Decoder) error {
 			return errors.New("trailing JSON value is not permitted")
 		}
 
-		return err
+		return fmt.Errorf("decode trailing JSON value: %w", err)
 	}
 
 	return nil

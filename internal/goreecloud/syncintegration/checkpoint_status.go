@@ -1,8 +1,8 @@
 package syncintegration
 
 import (
-	"errors"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
