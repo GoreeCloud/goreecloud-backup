@@ -11,6 +11,7 @@
 package syncintegration
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
