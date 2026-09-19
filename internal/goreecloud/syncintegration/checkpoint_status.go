@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+var errInvalidCheckpointStatus = errors.New("invalid checkpoint status")
+
 // CheckpointLifecycleState distinguishes request acceptance and engine activity
 // from the later existence of an independently usable recovery point.
 type CheckpointLifecycleState string
@@ -82,7 +84,7 @@ type CheckpointStatus struct {
 // itself does not imply that Sync may safely proceed.
 func (s CheckpointStatus) Validate() error {
 	if s.ContractVersion != ContractVersion {
-		return fmt.Errorf("unsupported contract version %q", s.ContractVersion)
+		return fmt.Errorf("%w: unsupported contract version %q", errInvalidCheckpointStatus, s.ContractVersion)
 	}
 
 	if err := validateOpaqueIdentifier("checkpoint status request ID", s.RequestID); err != nil {
@@ -106,13 +108,13 @@ func (s CheckpointStatus) Validate() error {
 	}
 
 	if !s.State.valid() {
-		return fmt.Errorf("invalid checkpoint lifecycle state %q", s.State)
+		return fmt.Errorf("%w: invalid checkpoint lifecycle state %q", errInvalidCheckpointStatus, s.State)
 	}
 
 	switch s.State {
 	case CheckpointStateAccepted, CheckpointStateRunning:
 		if s.RecoveryPointID != "" || s.RecoveryPointUsable || s.IntegrityVerified || s.RestoreVerified || s.FailureCategory != CheckpointFailureNone {
-			return fmt.Errorf("checkpoint state %q must not claim recovery success or failure evidence", s.State)
+			return fmt.Errorf("%w: checkpoint state %q must not claim recovery success or failure evidence", errInvalidCheckpointStatus, s.State)
 		}
 	case CheckpointStateFailed:
 		if !s.FailureCategory.validFailure() {
