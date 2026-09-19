@@ -613,6 +613,9 @@ app.on("ready", () => {
           allConfigs().map((repoID) => serverForRepo(repoID).stopServerAndWait()),
         );
       },
+      stopAllServersNow: () => {
+        allConfigs().forEach((repoID) => serverForRepo(repoID).stopServer());
+      },
     };
   }
 
