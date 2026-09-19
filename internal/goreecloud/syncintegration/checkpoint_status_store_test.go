@@ -293,15 +293,17 @@ func TestFileCheckpointStatusStoreRejectsNilOrCancelledContext(t *testing.T) {
 	store := newTestCheckpointStatusStore(t)
 
 	submission := validStoredCheckpointSubmission()
-	if err := store.RecordSubmission(nil, submission); err == nil {
+	var nilContext context.Context
+
+	if err := store.RecordSubmission(nilContext, submission); err == nil {
 		t.Fatal("RecordSubmission() accepted nil context")
 	}
 
-	if err := store.RecordStatus(nil, checkpointStatusForSubmission(submission, submission.AcceptedAt, CheckpointStateAccepted)); err == nil {
+	if err := store.RecordStatus(nilContext, checkpointStatusForSubmission(submission, submission.AcceptedAt, CheckpointStateAccepted)); err == nil {
 		t.Fatal("RecordStatus() accepted nil context")
 	}
 
-	if _, err := store.CheckpointStatus(nil, submission.OperationID); err == nil {
+	if _, err := store.CheckpointStatus(nilContext, submission.OperationID); err == nil {
 		t.Fatal("CheckpointStatus() accepted nil context")
 	}
 

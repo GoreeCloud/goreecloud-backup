@@ -68,7 +68,7 @@ func NewFileCheckpointStatusStore(path string) (*FileCheckpointStatusStore, erro
 		return nil, errors.New("checkpoint status store path must identify a file")
 	}
 
-	return &FileCheckpointStatusStore{path: clean}, nil
+	return &FileCheckpointStatusStore{path: clean, mu: sync.Mutex{}}, nil
 }
 
 // RecordSubmission initializes one operation with Backup's accepted receipt.
