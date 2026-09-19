@@ -1,0 +1,75 @@
+name: GoreeCloud Development Packaged UI
+
+on:
+  pull_request:
+    branches:
+      - agent/goreecloud-foundation
+    paths:
+      - app/**
+      - Makefile
+      - .github/workflows/goreecloud-development-packaged-ui.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+env:
+  UNIX_SHELL_ON_WINDOWS: true
+
+jobs:
+  packaged-ui:
+    name: Packaged UI (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact candidate
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: true
+
+      - name: Install Windows build tools
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: choco install --no-progress -y make zip unzip curl
+
+      - name: Reset Xcode selection
+        if: ${{ runner.os == 'macOS' }}
+        shell: bash
+        run: sudo xcode-select -r
+
+      - name: Set up repository build tools
+        shell: bash
+        run: make -j4 ci-setup
+
+      - name: Build embedded backup engine
+        shell: bash
+        run: make kopia
+
+      - name: Build packaged GoreeCloud Backup UI
+        shell: bash
+        run: make kopia-ui
+
+      - name: Run packaged Electron E2E
+        shell: bash
+        run: make kopia-ui-test

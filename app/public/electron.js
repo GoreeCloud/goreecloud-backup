@@ -168,6 +168,7 @@ function showRepoWindow(repositoryID) {
 
   // Create the browser window
   let repositoryWindow = new BrowserWindow(windowOptions);
+  repositoryWindow.setTitle(`GoreeCloud Backup v${app.getVersion()}`);
 
   // The GoreeCloud desktop shell owns the product-level window identity even
   // while the embedded backup interface remains an inherited compatibility
@@ -626,6 +627,10 @@ app.on("ready", () => {
       stopAllServersNow: () => {
         allConfigs().forEach((repoID) => serverForRepo(repoID).stopServer());
       },
+      repositoryWindowTitles: () =>
+        Object.values(repositoryWindows)
+          .filter((win) => win && !win.isDestroyed())
+          .map((win) => win.getTitle()),
     };
   }
 
