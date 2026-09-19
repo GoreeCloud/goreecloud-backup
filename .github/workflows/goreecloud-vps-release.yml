@@ -1,0 +1,341 @@
+name: GoreeCloud Backup VPS Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release Candidate version without v prefix (for example 0.1.0-rc.1)"
+        required: true
+        type: string
+      candidate_sha:
+        description: "Exact 40-character source commit SHA"
+        required: true
+        type: string
+      go_build_image:
+        description: "Approved Go builder tag@sha256 digest"
+        required: true
+        type: string
+      runtime_image:
+        description: "Approved runtime base tag@sha256 digest"
+        required: true
+        type: string
+      sbom_generator_image:
+        description: "Approved BuildKit SBOM generator tag@sha256 digest"
+        required: true
+        type: string
+      trivy_image:
+        description: "Approved Trivy scanner tag@sha256 digest"
+        required: true
+        type: string
+      cosign_image:
+        description: "Approved Cosign tag@sha256 digest"
+        required: true
+        type: string
+      confirm:
+        description: "Type RELEASE-CANDIDATE"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: goreecloud-backup-vps-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release-candidate:
+    name: Build, scan, sign, and publish exact VPS RC
+    runs-on: ubuntu-latest
+    environment: goreecloud-backup-release
+
+    env:
+      IMAGE_REPOSITORY: ghcr.io/goreecloud/goreecloud-backup
+      GO_BUILD_IMAGE: ${{ inputs.go_build_image }}
+      RUNTIME_IMAGE: ${{ inputs.runtime_image }}
+      SBOM_GENERATOR_IMAGE: ${{ inputs.sbom_generator_image }}
+      TRIVY_IMAGE: ${{ inputs.trivy_image }}
+      COSIGN_IMAGE: ${{ inputs.cosign_image }}
+
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+
+      - name: Fail closed on release identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          test "${{ inputs.confirm }}" = "RELEASE-CANDIDATE"
+
+          version="${{ inputs.version }}"
+          candidate_sha="${{ inputs.candidate_sha }}"
+          tag="v${version}"
+
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+          [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$candidate_sha"
+
+          for ref in \
+            "$GO_BUILD_IMAGE" \
+            "$RUNTIME_IMAGE" \
+            "$SBOM_GENERATOR_IMAGE" \
+            "$TRIVY_IMAGE" \
+            "$COSIGN_IMAGE"; do
+            case "$ref" in
+              *@sha256:*) ;;
+              *)
+                echo "release dependency is not pinned by digest: $ref" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          default_branch="${{ github.event.repository.default_branch }}"
+          git fetch origin "$default_branch" --tags
+          test "$(git rev-parse "origin/$default_branch")" = "$candidate_sha"
+
+          git show-ref --verify --quiet "refs/tags/$tag"
+          test "$(git rev-list -n 1 "$tag")" = "$candidate_sha"
+          test "$(git cat-file -t "$tag")" = "tag"
+
+          mkdir -p release-evidence
+          git cat-file -p "$tag" > release-evidence/tag-object.txt
+
+          grep -Eq 'BEGIN (PGP|SSH) SIGNATURE' release-evidence/tag-object.txt || {
+            echo "release tag does not contain a PGP or SSH signature block" >&2
+            exit 1
+          }
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release already exists for $tag; refusing reuse" >&2
+            exit 1
+          fi
+
+          {
+            echo "repository=$GITHUB_REPOSITORY"
+            echo "default_branch=$default_branch"
+            echo "candidate_sha=$candidate_sha"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "workflow=$GITHUB_WORKFLOW"
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "run_attempt=$GITHUB_RUN_ATTEMPT"
+          } > release-evidence/source-identity.txt
+
+      - name: Authenticate to GHCR
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ github.token }}" \
+            | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Refuse existing image tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_tag="$IMAGE_REPOSITORY:${{ inputs.version }}"
+
+          if docker buildx imagetools inspect "$image_tag" >/dev/null 2>&1; then
+            echo "image tag already exists; GoreeCloud release tags are immutable" >&2
+            exit 1
+          fi
+
+      - name: Build and push exact image with provenance and SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata="$PWD/release-evidence/build-metadata.json"
+          image_tag="$IMAGE_REPOSITORY:${{ inputs.version }}"
+
+          GO_BUILD_IMAGE="$GO_BUILD_IMAGE" \
+          RUNTIME_IMAGE="$RUNTIME_IMAGE" \
+          GOREECLOUD_BACKUP_VERSION="${{ inputs.version }}" \
+          GOREECLOUD_BACKUP_COMMIT="${{ inputs.candidate_sha }}" \
+          GOREECLOUD_BACKUP_IMAGE_TAG="$image_tag" \
+          GOREECLOUD_BACKUP_PUSH=true \
+          GOREECLOUD_BACKUP_METADATA_FILE="$metadata" \
+          GOREECLOUD_BACKUP_SBOM_GENERATOR="$SBOM_GENERATOR_IMAGE" \
+            deploy/docker/build-image.sh
+
+          digest="$(
+            python3 - "$metadata" <<'PY'
+          import json
+          import re
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              metadata = json.load(handle)
+
+          digest = metadata.get("containerimage.digest", "")
+          if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+              raise SystemExit("build metadata does not contain a valid container digest")
+
+          print(digest)
+          PY
+          )"
+
+          exact_ref="$IMAGE_REPOSITORY@$digest"
+          printf '%s\n' "$exact_ref" > release-evidence/image-reference.txt
+
+          docker buildx imagetools inspect "$exact_ref" >/dev/null
+          docker buildx imagetools inspect "$exact_ref" --raw \
+            > release-evidence/oci-index.json
+
+          python3 - release-evidence/oci-index.json <<'PY' \
+            > release-evidence/attestation-check.txt
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              index = json.load(handle)
+
+          attestations = 0
+          for manifest in index.get("manifests", []):
+              annotations = manifest.get("annotations", {})
+              if annotations.get("vnd.docker.reference.type") == "attestation-manifest":
+                  attestations += 1
+
+          if attestations < 1:
+              raise SystemExit("published image has no OCI attestation manifest")
+
+          print(f"attestation_manifests={attestations}")
+          PY
+
+      - name: Scan exact container digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          exact_ref="$(cat release-evidence/image-reference.txt)"
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+
+          docker run --rm \
+            --volume "$HOME/.docker:/root/.docker:ro" \
+            --volume "$RUNNER_TEMP/trivy-cache:/root/.cache/" \
+            --volume "$PWD/release-evidence:/evidence" \
+            "$TRIVY_IMAGE" image \
+              --scanners vuln \
+              --severity HIGH,CRITICAL \
+              --exit-code 1 \
+              --format json \
+              --output /evidence/trivy.json \
+              "$exact_ref"
+
+      - name: Sign and verify exact image digest
+        shell: bash
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$COSIGN_PRIVATE_KEY"
+          test -n "$COSIGN_PASSWORD"
+
+          exact_ref="$(cat release-evidence/image-reference.txt)"
+
+          docker run --rm \
+            --env COSIGN_PRIVATE_KEY \
+            --env COSIGN_PASSWORD \
+            "$COSIGN_IMAGE" public-key \
+              --key env://COSIGN_PRIVATE_KEY \
+            > release-evidence/cosign.pub
+
+          docker run --rm \
+            --env COSIGN_PRIVATE_KEY \
+            --env COSIGN_PASSWORD \
+            --volume "$HOME/.docker:/root/.docker:ro" \
+            "$COSIGN_IMAGE" sign --yes \
+              --key env://COSIGN_PRIVATE_KEY \
+              "$exact_ref"
+
+          docker run --rm \
+            --volume "$HOME/.docker:/root/.docker:ro" \
+            --volume "$PWD/release-evidence:/evidence:ro" \
+            "$COSIGN_IMAGE" verify \
+              --key /evidence/cosign.pub \
+              "$exact_ref" \
+            | tee release-evidence/cosign-verify.txt
+
+      - name: Finalize release evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "go_build_image=$GO_BUILD_IMAGE"
+            echo "runtime_image=$RUNTIME_IMAGE"
+            echo "sbom_generator_image=$SBOM_GENERATOR_IMAGE"
+            echo "trivy_image=$TRIVY_IMAGE"
+            echo "cosign_image=$COSIGN_IMAGE"
+          } > release-evidence/release-dependencies.txt
+
+          (
+            cd release-evidence
+            sha256sum \
+              attestation-check.txt \
+              build-metadata.json \
+              cosign-verify.txt \
+              cosign.pub \
+              image-reference.txt \
+              oci-index.json \
+              release-dependencies.txt \
+              source-identity.txt \
+              tag-object.txt \
+              trivy.json \
+              > SHA256SUMS
+          )
+
+          tar -C release-evidence -czf goreecloud-backup-release-evidence.tgz .
+
+      - name: Create GitHub pre-release record
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ inputs.version }}"
+          exact_ref="$(cat release-evidence/image-reference.txt)"
+
+          notes="$RUNNER_TEMP/goreecloud-backup-release-notes.txt"
+          cat > "$notes" <<EOF
+          GoreeCloud Backup headless VPS Release Candidate.
+
+          Lifecycle: Release Candidate / pre-release — not Stable.
+          Source: ${{ inputs.candidate_sha }}
+          Container: $exact_ref
+
+          Production deployment is not authorized by this release record alone.
+          Target-VPS source-scope, repository, full verification, isolated restore,
+          application-consistent recovery, monitoring, rollback, schedule, and
+          production-acceptance evidence remain separately governed.
+          EOF
+
+          gh release create "$tag" \
+            goreecloud-backup-release-evidence.tgz \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --prerelease \
+            --title "GoreeCloud Backup ${{ inputs.version }}" \
+            --notes-file "$notes"
+
+          gh release view "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isPrerelease,url,assets \
+            > release-evidence/github-release-readback.json
+
+      - name: Retain release evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: goreecloud-backup-release-evidence-${{ github.run_id }}
+          path: |
+            release-evidence/
+            goreecloud-backup-release-evidence.tgz
+          if-no-files-found: error
+          retention-days: 90

@@ -7,6 +7,7 @@ on:
       - "deploy/docker/**"
       - "deploy/systemd/**"
       - ".github/workflows/goreecloud-vps-packaging.yml"
+      - ".github/workflows/goreecloud-vps-release.yml"
 
 permissions:
   contents: read
@@ -203,6 +204,19 @@ jobs:
           grep -q 'GOREECLOUD_BACKUP_IMAGE:?' deploy/docker/compose.yaml
           grep -q 'GO_BUILD_IMAGE' deploy/docker/Dockerfile
           grep -q 'RUNTIME_IMAGE' deploy/docker/Dockerfile
+          grep -q 'GOREECLOUD_BACKUP_PUSH' deploy/docker/build-image.sh
+          grep -q -- '--provenance=mode=max' deploy/docker/build-image.sh
+          grep -q 'type=sbom,generator=' deploy/docker/build-image.sh
+          grep -q 'workflow_dispatch:' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'environment: goreecloud-backup-release' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'HIGH,CRITICAL' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'COSIGN_PRIVATE_KEY' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'gh release create' .github/workflows/goreecloud-vps-release.yml
+
+          if grep -q 'pull_request:' .github/workflows/goreecloud-vps-release.yml; then
+            echo "privileged VPS release workflow must not execute on pull requests" >&2
+            exit 1
+          fi
           grep -q 'compose.sources.yaml' deploy/docker/goreecloud-backup.sh
           grep -q 'validate-source-scope.py' deploy/docker/goreecloud-backup.sh
           grep -q -- '--fail-fast /source' deploy/docker/goreecloud-backup.sh

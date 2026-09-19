@@ -118,6 +118,23 @@ for an explicit connectivity/status check.
 
 Scheduled execution uses the default `backup` action. Repository connection is never performed implicitly by a scheduled backup attempt.
 
+## Release Candidate publication
+
+The privileged Release Candidate workflow is `.github/workflows/goreecloud-vps-release.yml`. It is **manual-only** and declares the protected GitHub environment `goreecloud-backup-release`.
+
+The workflow intentionally cannot create a source tag. Before it can publish an RC:
+
+1. the exact candidate must already be the current accepted default-branch HEAD;
+2. an annotated `v<version>-rc.<n>` tag must already exist at that exact commit and contain a PGP or SSH signature block;
+3. the version and image tag must be unused;
+4. approved Go-builder, runtime, SBOM-generator, Trivy, and Cosign images must all be supplied as exact `tag@sha256` references;
+5. the protected release environment must supply `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD`;
+6. the release operator must explicitly type `RELEASE-CANDIDATE`.
+
+The workflow builds through the same `deploy/docker/build-image.sh` path with BuildKit max-mode provenance and an explicitly pinned SBOM generator, pushes only the RC version tag to GHCR, reads back the immutable image digest, requires OCI attestation material, fails on HIGH or CRITICAL container vulnerabilities, signs the exact digest with Cosign, verifies that signature, packages the evidence, and creates a GitHub **pre-release** record.
+
+It never publishes `latest`, never silently reuses an existing image/release tag, and never changes the lifecycle to Stable. Production deployment and Stable promotion remain separate governed operations.
+
 ## Manual recovery acceptance
 
 The scheduled `backup` action only performs the normal fail-closed snapshot path. It does **not** run full-file verification or restore on every scheduled execution.
