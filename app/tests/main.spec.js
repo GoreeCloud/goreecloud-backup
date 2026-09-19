@@ -268,7 +268,12 @@ test.beforeEach(async () => {
   tmpAppDataDir = createTemporaryAppDataDir();
 });
 
-test.afterEach(async () => {
+test.afterEach(async ({}, testInfo) => {
+  // Keep test-body assertions on Playwright's default 30-second budget while
+  // giving bounded process/profile cleanup enough independent time to finish.
+  // This does not relax application readiness or identity assertions.
+  testInfo.setTimeout(60000);
+
   if (electronApp) {
     await closePackagedApp(electronApp);
   }
