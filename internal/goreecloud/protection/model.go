@@ -5,6 +5,7 @@
 package protection
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
