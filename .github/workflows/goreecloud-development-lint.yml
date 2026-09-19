@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
           tools/.tools/golangci-lint-2.13.2/golangci-lint \
             --timeout 1200s \
-            run -D gofmt -D goimports \
+            run \
             ./internal/goreecloud/...
 
       - name: Lint GoreeCloud-owned packages for Windows
@@ -59,7 +59,7 @@ jobs:
           GOOS=windows GOARCH=amd64 \
             tools/.tools/golangci-lint-2.13.2/golangci-lint \
             --timeout 1200s \
-            run -D gofmt -D goimports \
+            run \
             ./internal/goreecloud/...
 
       - name: Check repository locks
