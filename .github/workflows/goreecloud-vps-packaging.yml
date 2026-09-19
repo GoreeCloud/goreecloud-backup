@@ -51,6 +51,10 @@ jobs:
           GOREECLOUD_BACKUP_LOG_DIR: /tmp/goreecloud-backup/logs
           GOREECLOUD_BACKUP_TMP_DIR: /tmp/goreecloud-backup/tmp
           GOREECLOUD_BACKUP_RESTORE_DIR: /tmp/goreecloud-backup/restore
+          GOREECLOUD_BACKUP_SFTP_HOST: backup-repository.internal
+          GOREECLOUD_BACKUP_SFTP_PORT: "22"
+          GOREECLOUD_BACKUP_SFTP_USERNAME: backup
+          GOREECLOUD_BACKUP_SFTP_REPOSITORY_PATH: /repository
           GOREECLOUD_BACKUP_SFTP_KEY_FILE: /tmp/goreecloud-backup/secrets/kopia-sftp-ed25519
           GOREECLOUD_BACKUP_SFTP_KNOWN_HOSTS_FILE: /tmp/goreecloud-backup/secrets/kopia-sftp-known_hosts
           GOREECLOUD_BACKUP_REPOSITORY_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/repository-password
@@ -101,8 +105,16 @@ jobs:
           grep -q 'GO_BUILD_IMAGE' deploy/docker/Dockerfile
           grep -q 'RUNTIME_IMAGE' deploy/docker/Dockerfile
           grep -q 'compose.sources.yaml' deploy/docker/goreecloud-backup.sh
+          grep -q 'connect-repository' deploy/docker/goreecloud-backup.sh
+          grep -q '__goreecloud_connect_existing_sftp' deploy/docker/entrypoint.sh
+          grep -q 'repository connect sftp' deploy/docker/entrypoint.sh
           grep -q 'repository status' deploy/docker/goreecloud-backup.sh
           grep -q 'snapshot create /source' deploy/docker/goreecloud-backup.sh
+
+          if grep -q -- '--sftp-password\|--key-data\|--known-hosts-data' deploy/docker/entrypoint.sh deploy/docker/goreecloud-backup.sh; then
+            echo "repository bootstrap must not place reusable secret material in command arguments" >&2
+            exit 1
+          fi
 
       - name: Validate systemd schedule contract
         shell: bash
