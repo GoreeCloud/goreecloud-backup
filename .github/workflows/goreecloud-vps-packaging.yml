@@ -215,11 +215,75 @@ jobs:
           grep -q 'Storage type:' deploy/docker/entrypoint.sh
           grep -q 'repository connect' deploy/docker/entrypoint.sh
           grep -q 'repository status' deploy/docker/goreecloud-backup.sh
+          grep -q 'acceptance-recovery' deploy/docker/goreecloud-backup.sh
+          grep -q 'validate-snapshot-evidence.py' deploy/docker/goreecloud-backup.sh
+          grep -q -- '--verify-files-percent=100' deploy/docker/goreecloud-backup.sh
+          grep -q 'snapshot restore' deploy/docker/goreecloud-backup.sh
 
           if grep -q -- '--sftp-password\|--key-data\|--known-hosts-data' deploy/docker/entrypoint.sh deploy/docker/goreecloud-backup.sh; then
             echo "repository bootstrap must not place reusable secret material in command arguments" >&2
             exit 1
           fi
+
+      - name: Build headless container candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          evidence=/tmp/goreecloud-backup-image-evidence.txt
+          : > "$evidence"
+
+          candidate_sha="${{ github.event.pull_request.head.sha }}"
+          candidate_version="0.0.0-ci-${candidate_sha:0:12}"
+          candidate_image="goreecloud-backup:ci-${candidate_sha:0:12}"
+
+          go_build_tag="golang:1.26.8-bookworm"
+          runtime_tag="debian:bookworm-slim"
+
+          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$evidence"
+          printf 'candidate_version=%s\n' "$candidate_version" >> "$evidence"
+
+          docker pull "$go_build_tag"
+          docker pull "$runtime_tag"
+
+          go_digest_ref="$(docker image inspect "$go_build_tag" --format '{{index .RepoDigests 0}}')"
+          runtime_digest_ref="$(docker image inspect "$runtime_tag" --format '{{index .RepoDigests 0}}')"
+
+          go_build_image="${go_build_tag}@${go_digest_ref#*@}"
+          runtime_image="${runtime_tag}@${runtime_digest_ref#*@}"
+
+          printf 'go_build_image=%s\n' "$go_build_image" >> "$evidence"
+          printf 'runtime_image=%s\n' "$runtime_image" >> "$evidence"
+
+          GO_BUILD_IMAGE="$go_build_image" \
+          RUNTIME_IMAGE="$runtime_image" \
+          GOREECLOUD_BACKUP_VERSION="$candidate_version" \
+          GOREECLOUD_BACKUP_COMMIT="$candidate_sha" \
+          GOREECLOUD_BACKUP_IMAGE_TAG="$candidate_image" \
+            deploy/docker/build-image.sh | tee -a "$evidence"
+
+          image_id="$(docker image inspect "$candidate_image" --format '{{.Id}}')"
+          printf 'candidate_image=%s\n' "$candidate_image" >> "$evidence"
+          printf 'candidate_image_id=%s\n' "$image_id" >> "$evidence"
+
+          docker run --rm \
+            --user 10001:10001 \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --env KOPIA_CONFIG_PATH=/tmp/repository.config \
+            --env KOPIA_CACHE_DIRECTORY=/tmp/cache \
+            --env KOPIA_LOG_DIR=/tmp/logs \
+            "$candidate_image" --version \
+            | tee -a "$evidence"
+
+      - name: Retain headless image build evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: goreecloud-backup-vps-image-evidence-${{ github.run_id }}
+          path: /tmp/goreecloud-backup-image-evidence.txt
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Validate systemd schedule contract
         shell: bash
