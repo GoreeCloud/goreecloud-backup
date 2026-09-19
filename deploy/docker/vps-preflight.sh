@@ -3,70 +3,96 @@ set -eu
 
 KOPIA_STACK_DIR="${KOPIA_STACK_DIR:-/srv/docker/stacks/kopia}"
 KOPIA_COMPOSE_FILE="${KOPIA_COMPOSE_FILE:-${KOPIA_STACK_DIR}/compose.yaml}"
-KOPIA_SERVICE="${KOPIA_SERVICE:-kopia}"
 KOPIA_TIMER="${KOPIA_TIMER:-goreecloud-kopia-backup.timer}"
 KOPIA_SERVICE_UNIT="${KOPIA_SERVICE_UNIT:-goreecloud-kopia-backup.service}"
 
-echo "=== GoreeCloud Backup replacement preflight ==="
-echo "This script is read-only. It does not stop Kopia, change a repository, or print secret file contents."
+TARGET_STACK_DIR="${GOREECLOUD_BACKUP_STACK_DIR:-/srv/docker/stacks/goreecloud-backup}"
+TARGET_COMPOSE_FILE="${TARGET_STACK_DIR}/compose.yaml"
+TARGET_SOURCES_FILE="${TARGET_STACK_DIR}/compose.sources.yaml"
+TARGET_ENV_FILE="${TARGET_STACK_DIR}/.env"
 
-if [ ! -r "$KOPIA_COMPOSE_FILE" ]; then
-  echo "Kopia Compose file not found/readable: $KOPIA_COMPOSE_FILE" >&2
-  exit 1
-fi
+echo "=== GoreeCloud Backup VPS replacement preflight ==="
+echo "Read-only: this script does not stop services, change repositories, modify timers, or print secret contents."
 
 echo
 echo "=== Docker / Compose versions ==="
 docker version --format 'Docker server: {{.Server.Version}}'
 docker compose version
 
-echo
-echo "=== Current Kopia Compose services ==="
-docker compose --file "$KOPIA_COMPOSE_FILE" config --no-env-resolution --services
+blocker=0
 
-if ! docker compose --file "$KOPIA_COMPOSE_FILE" config --no-env-resolution --services | grep -Fxq "$KOPIA_SERVICE"; then
-  echo "expected Kopia service '$KOPIA_SERVICE' is not present; set KOPIA_SERVICE to the verified service name" >&2
+echo
+echo "=== Retired Kopia VPS runtime residual check ==="
+
+if [ -r "$KOPIA_COMPOSE_FILE" ]; then
+  echo "unexpected_legacy_compose=present:$KOPIA_COMPOSE_FILE"
+  echo "The canonical task records the VPS-side Kopia stack as retired; unexpected reappearance requires review." >&2
+  blocker=1
+else
+  echo "legacy_kopia_compose=absent"
+fi
+
+legacy_containers="$(docker ps -a --format '{{.Names}} {{.Image}}' | grep -Ei '(^|[[:space:]/])kopia([[:space:]/:@]|$)|kopia/kopia' || true)"
+if [ -n "$legacy_containers" ]; then
+  echo "unexpected_legacy_containers:"
+  printf '%s\n' "$legacy_containers"
+  blocker=1
+else
+  echo "legacy_kopia_containers=absent"
+fi
+
+legacy_images="$(docker image ls --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep -E '^kopia/kopia:' || true)"
+if [ -n "$legacy_images" ]; then
+  echo "unexpected_legacy_images:"
+  printf '%s\n' "$legacy_images"
+  blocker=1
+else
+  echo "legacy_kopia_images=absent"
+fi
+
+for unit in "$KOPIA_TIMER" "$KOPIA_SERVICE_UNIT"; do
+  if systemctl list-unit-files --no-legend "$unit" 2>/dev/null | grep -q .; then
+    echo "unexpected_legacy_unit=$unit"
+    systemctl is-enabled "$unit" || true
+    systemctl is-active "$unit" || true
+    blocker=1
+  else
+    echo "legacy_unit_absent=$unit"
+  fi
+done
+
+echo
+echo "=== GoreeCloud Backup target material ==="
+
+for required_file in "$TARGET_COMPOSE_FILE" "$TARGET_SOURCES_FILE" "$TARGET_ENV_FILE"; do
+  if [ -r "$required_file" ]; then
+    echo "target_file_readable=$required_file"
+  else
+    echo "target_file_missing=$required_file"
+    blocker=1
+  fi
+done
+
+if [ -r "$TARGET_SOURCES_FILE" ]; then
+  echo
+  echo "=== Candidate source bindings declared in compose.sources.yaml ==="
+  # The file is expected to contain paths only; do not print the .env or secret files.
+  sed -n -e '/^[[:space:]]*source:/p' -e '/^[[:space:]]*target:/p' -e '/^[[:space:]]*read_only:/p' "$TARGET_SOURCES_FILE"
+fi
+
+echo
+echo "=== Current scheduling target ==="
+systemctl is-enabled goreecloud-backup.timer || true
+systemctl is-active goreecloud-backup.timer || true
+systemctl is-enabled goreecloud-backup.service || true
+systemctl is-active goreecloud-backup.service || true
+
+if [ "$blocker" -ne 0 ]; then
+  echo
+  echo "Preflight found unresolved replacement-readiness blockers." >&2
   exit 1
 fi
 
 echo
-echo "=== Current Kopia image reference ==="
-docker compose --file "$KOPIA_COMPOSE_FILE" config --no-env-resolution --images
-
-echo
-echo "=== Current bind-mount source/target/read-only metadata ==="
-docker compose --file "$KOPIA_COMPOSE_FILE" config --format json   | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-service = data.get("services", {}).get(sys.argv[1], {})
-for v in service.get("volumes", []):
-    if isinstance(v, dict) and v.get("type") == "bind":
-        print(f"{v.get('source','?')} -> {v.get('target','?')} read_only={bool(v.get('read_only', False))}")
-' "$KOPIA_SERVICE"
-
-echo
-echo "=== Current scheduling units ==="
-systemctl is-enabled "$KOPIA_TIMER" || true
-systemctl is-active "$KOPIA_TIMER" || true
-systemctl is-enabled "$KOPIA_SERVICE_UNIT" || true
-systemctl is-active "$KOPIA_SERVICE_UNIT" || true
-
-echo
-echo "=== Current repository status through the existing Kopia stack ==="
-docker compose --file "$KOPIA_COMPOSE_FILE" run --rm "$KOPIA_SERVICE" repository status
-
-echo
-echo "=== Current snapshot summary ==="
-docker compose --file "$KOPIA_COMPOSE_FILE" run --rm "$KOPIA_SERVICE" snapshot list --all --json   | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-items = data if isinstance(data, list) else []
-print(f"snapshot_count={len(items)}")
-if items:
-    latest = max(items, key=lambda x: x.get("startTime", ""))
-    print("latest_snapshot_id=" + str(latest.get("id", "unknown")))
-    print("latest_start_time=" + str(latest.get("startTime", "unknown")))
-'
-
-echo
-echo "Preflight completed. Preserve this output with the cutover evidence."
+echo "Preflight passed the non-destructive host/material checks."
+echo "Repository access, backup creation, integrity verification, restore validation, and schedule acceptance remain separate required evidence."
