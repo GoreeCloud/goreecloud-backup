@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+var errInvalidDatasetScopeMapping = errors.New("invalid dataset-scope mapping")
+
 // ErrDatasetScopeMappingNotFound indicates that Backup has no approved mapping
 // for the requested Sync dataset. Callers must not infer a Backup scope from a
 // path, name, or other Sync-owned metadata when this occurs.
@@ -36,7 +38,7 @@ type DatasetScopeMapping struct {
 // active and does not authorize access to either product.
 func (m DatasetScopeMapping) Validate() error {
 	if m.ContractVersion != ContractVersion {
-		return fmt.Errorf("unsupported contract version %q", m.ContractVersion)
+		return fmt.Errorf("%w: unsupported contract version %q", errInvalidDatasetScopeMapping, m.ContractVersion)
 	}
 
 	if err := validateOpaqueIdentifier("dataset ID", m.DatasetID); err != nil {
