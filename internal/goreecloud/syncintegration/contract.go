@@ -127,6 +127,7 @@ func validProtectionState(state protection.State) bool {
 // recognized by this contract.
 type CheckpointPurpose string
 
+// CheckpointPreChange and related values describe permitted checkpoint purposes.
 const (
 	CheckpointPreChange    CheckpointPurpose = "pre_change"
 	CheckpointPreMigration CheckpointPurpose = "pre_migration"
@@ -179,6 +180,7 @@ func (r CheckpointRequest) Validate() error {
 // reached. Backup recovery must remain possible when Sync is unavailable.
 type SyncAvailability string
 
+// SyncAvailabilityAvailable and related values describe Sync availability state.
 const (
 	SyncAvailabilityAvailable   SyncAvailability = "available"
 	SyncAvailabilityUnavailable SyncAvailability = "unavailable"
@@ -198,6 +200,7 @@ func (a SyncAvailability) valid() bool {
 // a restore into a Sync-managed production path.
 type CoordinationAction string
 
+// ActionStageRestore and related values describe permitted restore-coordination actions.
 const (
 	ActionStageRestore         CoordinationAction = "stage_restore"
 	ActionPauseOrMaintenance   CoordinationAction = "pause_or_maintenance"
@@ -208,6 +211,7 @@ const (
 // ReconciliationState records only the Sync-related post-restore state.
 type ReconciliationState string
 
+// ReconciliationNotRequired and related values describe post-restore reconciliation state.
 const (
 	ReconciliationNotRequired ReconciliationState = "not_required"
 	ReconciliationRequired    ReconciliationState = "required"
