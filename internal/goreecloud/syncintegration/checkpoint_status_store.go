@@ -244,13 +244,18 @@ func (s *FileCheckpointStatusStore) CheckpointStatus(ctx context.Context, operat
 
 func acceptedStatusForSubmission(submission CheckpointSubmission) (CheckpointStatus, error) {
 	accepted := CheckpointStatus{
-		ContractVersion: ContractVersion,
-		RequestID:       submission.RequestID,
-		OperationID:     submission.OperationID,
-		DatasetID:       submission.DatasetID,
-		BackupScopeID:   submission.BackupScopeID,
-		ObservedAt:      submission.AcceptedAt.UTC(),
-		State:           CheckpointStateAccepted,
+		ContractVersion:     ContractVersion,
+		RequestID:           submission.RequestID,
+		OperationID:         submission.OperationID,
+		DatasetID:           submission.DatasetID,
+		BackupScopeID:       submission.BackupScopeID,
+		ObservedAt:          submission.AcceptedAt.UTC(),
+		State:               CheckpointStateAccepted,
+		RecoveryPointID:     "",
+		RecoveryPointUsable: false,
+		IntegrityVerified:   false,
+		RestoreVerified:     false,
+		FailureCategory:     "",
 	}
 	if err := accepted.ValidateForSubmission(submission); err != nil {
 		return CheckpointStatus{}, fmt.Errorf("invalid checkpoint submission: %w", err)

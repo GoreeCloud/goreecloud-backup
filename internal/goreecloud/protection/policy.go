@@ -57,12 +57,13 @@ type ObservedAssessment struct {
 func BaselinePolicy() Policy {
 	requirements := make([]EvidenceRequirement, 0, len(baselineRequiredEvidence))
 	for _, kind := range baselineRequiredEvidence {
-		requirements = append(requirements, EvidenceRequirement{Kind: kind})
+		requirements = append(requirements, EvidenceRequirement{Kind: kind, MaxAge: 0})
 	}
 
 	return Policy{
-		ID:           "baseline",
-		Requirements: requirements,
+		ID:                        "baseline",
+		Requirements:              requirements,
+		RestoreVerificationMaxAge: 0,
 	}
 }
 
@@ -127,8 +128,10 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 	}
 
 	assessment := Assessment{
-		Configured:       observed.Configured,
-		BackupInProgress: observed.BackupInProgress,
+		Configured:          observed.Configured,
+		BackupInProgress:    observed.BackupInProgress,
+		Evidence:            nil,
+		RestoreVerification: "",
 	}
 
 	seen := make(map[EvidenceKind]struct{}, len(observed.Evidence))

@@ -256,7 +256,9 @@ func PlanRestoreCoordination(datasetID string, syncManaged bool, availability Sy
 		DatasetID:          datasetID,
 		SyncManaged:        syncManaged,
 		SyncAvailability:   availability,
+		StagingRequired:    false,
 		DirectWriteAllowed: !syncManaged,
+		RequiredActions:    nil,
 		Reconciliation:     ReconciliationNotRequired,
 	}
 
