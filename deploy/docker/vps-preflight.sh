@@ -10,9 +10,21 @@ TARGET_STACK_DIR="${GOREECLOUD_BACKUP_STACK_DIR:-/srv/docker/stacks/goreecloud-b
 TARGET_COMPOSE_FILE="${TARGET_STACK_DIR}/compose.yaml"
 TARGET_SOURCES_FILE="${TARGET_STACK_DIR}/compose.sources.yaml"
 TARGET_ENV_FILE="${TARGET_STACK_DIR}/.env"
+TARGET_SOURCE_SCOPE_VALIDATOR="${TARGET_STACK_DIR}/validate-source-scope.py"
 
 echo "=== GoreeCloud Backup VPS replacement preflight ==="
 echo "Read-only: this script does not stop services, change repositories, modify timers, or print secret contents."
+
+echo
+echo "=== Required host tooling ==="
+for required_command in docker python3 systemctl; do
+  if command -v "$required_command" >/dev/null 2>&1; then
+    echo "command_available=$required_command"
+  else
+    echo "command_missing=$required_command" >&2
+    exit 1
+  fi
+done
 
 echo
 echo "=== Docker / Compose versions ==="
@@ -64,7 +76,7 @@ done
 echo
 echo "=== GoreeCloud Backup target material ==="
 
-for required_file in "$TARGET_COMPOSE_FILE" "$TARGET_SOURCES_FILE" "$TARGET_ENV_FILE"; do
+for required_file in "$TARGET_COMPOSE_FILE" "$TARGET_SOURCES_FILE" "$TARGET_ENV_FILE" "$TARGET_SOURCE_SCOPE_VALIDATOR"; do
   if [ -r "$required_file" ]; then
     echo "target_file_readable=$required_file"
   else
@@ -73,11 +85,23 @@ for required_file in "$TARGET_COMPOSE_FILE" "$TARGET_SOURCES_FILE" "$TARGET_ENV_
   fi
 done
 
-if [ -r "$TARGET_SOURCES_FILE" ]; then
+if [ -r "$TARGET_COMPOSE_FILE" ] &&
+   [ -r "$TARGET_SOURCES_FILE" ] &&
+   [ -r "$TARGET_ENV_FILE" ] &&
+   [ -r "$TARGET_SOURCE_SCOPE_VALIDATOR" ]; then
   echo
-  echo "=== Candidate source bindings declared in compose.sources.yaml ==="
-  # The file is expected to contain paths only; do not print the .env or secret files.
-  sed -n -e '/^[[:space:]]*source:/p' -e '/^[[:space:]]*target:/p' -e '/^[[:space:]]*read_only:/p' "$TARGET_SOURCES_FILE"
+  echo "=== Candidate backup source-scope validation ==="
+  if docker compose \
+      --env-file "$TARGET_ENV_FILE" \
+      --file "$TARGET_COMPOSE_FILE" \
+      --file "$TARGET_SOURCES_FILE" \
+      config --format json \
+      | python3 "$TARGET_SOURCE_SCOPE_VALIDATOR" --require-host-readable; then
+    echo "source_scope=valid"
+  else
+    echo "source_scope=invalid" >&2
+    blocker=1
+  fi
 fi
 
 echo

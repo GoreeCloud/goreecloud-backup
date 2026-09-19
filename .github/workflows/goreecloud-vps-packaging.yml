@@ -39,6 +39,7 @@ jobs:
           sh -n deploy/docker/build-image.sh
           sh -n deploy/docker/goreecloud-backup.sh
           sh -n deploy/docker/vps-preflight.sh
+          python3 -m py_compile deploy/docker/validate-source-scope.py
 
       - name: Validate Compose rendering
         shell: bash
@@ -65,7 +66,55 @@ jobs:
           printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/kopia-sftp-ed25519
           printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/kopia-sftp-known_hosts
 
-          docker compose             --file deploy/docker/compose.yaml             config > /tmp/goreecloud-backup-compose.yaml
+          docker compose \
+            --file deploy/docker/compose.yaml \
+            config > /tmp/goreecloud-backup-compose.yaml
+
+          mkdir -p /tmp/goreecloud-backup/current-source
+
+          cat > /tmp/goreecloud-backup-sources.yaml <<'YAML'
+          services:
+            backup:
+              volumes:
+                - type: bind
+                  source: /tmp/goreecloud-backup/current-source
+                  target: /source/current
+                  read_only: true
+          YAML
+
+          docker compose \
+            --file deploy/docker/compose.yaml \
+            --file /tmp/goreecloud-backup-sources.yaml \
+            config --format json \
+            | python3 deploy/docker/validate-source-scope.py --require-host-readable \
+            | grep -Fxq '/source/current'
+
+          if docker compose \
+              --file deploy/docker/compose.yaml \
+              config --format json \
+              | python3 deploy/docker/validate-source-scope.py --require-host-readable; then
+            echo "empty backup source scope unexpectedly passed validation" >&2
+            exit 1
+          fi
+
+          cat > /tmp/goreecloud-backup-writable-source.yaml <<'YAML'
+          services:
+            backup:
+              volumes:
+                - type: bind
+                  source: /tmp/goreecloud-backup/current-source
+                  target: /source/current
+                  read_only: false
+          YAML
+
+          if docker compose \
+              --file deploy/docker/compose.yaml \
+              --file /tmp/goreecloud-backup-writable-source.yaml \
+              config --format json \
+              | python3 deploy/docker/validate-source-scope.py --require-host-readable; then
+            echo "writable backup source unexpectedly passed validation" >&2
+            exit 1
+          fi
 
       - name: Enforce production-safe CLI invariants
         shell: bash
@@ -105,6 +154,8 @@ jobs:
           grep -q 'GO_BUILD_IMAGE' deploy/docker/Dockerfile
           grep -q 'RUNTIME_IMAGE' deploy/docker/Dockerfile
           grep -q 'compose.sources.yaml' deploy/docker/goreecloud-backup.sh
+          grep -q 'validate-source-scope.py' deploy/docker/goreecloud-backup.sh
+          grep -q -- '--fail-fast /source' deploy/docker/goreecloud-backup.sh
           grep -q 'connect-repository' deploy/docker/goreecloud-backup.sh
           grep -q '__goreecloud_connect_existing_sftp' deploy/docker/entrypoint.sh
           grep -q 'repository connect sftp' deploy/docker/entrypoint.sh

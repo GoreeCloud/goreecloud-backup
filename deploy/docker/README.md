@@ -32,6 +32,7 @@ The deployment definition intentionally:
 - mounts the SFTP private key and known_hosts read-only at compatibility paths where the preserved repository requires them;
 - keeps repository credential persistence disabled;
 - keeps backup source mounts out of the base Compose file so historical documentation cannot silently expand or shrink protection scope;
+- refuses to run a scheduled snapshot unless at least one explicit read-only `/source/<name>` bind is configured, the host source exists, and the configured container identity can read it;
 - provides a separate writable restore-validation location;
 - retains bounded local container logs.
 
@@ -115,7 +116,7 @@ Scheduled execution uses the default `backup` action. Repository connection is n
 
 The included systemd unit/timer files model the historically used four-times-daily cadence as a candidate schedule. Because the old Kopia timer has already been retired, the schedule must be accepted against current recovery objectives before the GoreeCloud Backup timer is enabled.
 
-The wrapper validates Compose without resolving environment values, proves repository access, and only then creates a snapshot of `/source`.
+The wrapper validates Compose without printing resolved environment values, validates the source scope fail-closed, proves the configured container identity can read every declared source, proves repository access, and only then creates a fail-fast snapshot of `/source`.
 
 ## VPS component qualification boundary
 
