@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var errInvalidProtectionAssessment = errors.New("invalid protection assessment")
+
 // State is the user-facing protection state for a protected system or dataset.
 type State string
 
@@ -173,7 +175,7 @@ type Evaluation struct {
 func Evaluate(a Assessment) (Evaluation, error) {
 	restoreVerification := normalizeEvidenceStatus(a.RestoreVerification)
 	if !restoreVerification.valid() {
-		return Evaluation{}, fmt.Errorf("invalid restore verification status %q", a.RestoreVerification)
+		return Evaluation{}, fmt.Errorf("%w: invalid restore verification status %q", errInvalidProtectionAssessment, a.RestoreVerification)
 	}
 
 	var out Evaluation
@@ -192,16 +194,16 @@ func Evaluate(a Assessment) (Evaluation, error) {
 		}
 
 		if !item.Kind.valid() {
-			return Evaluation{}, fmt.Errorf("invalid evidence kind %q", item.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid evidence kind %q", errInvalidProtectionAssessment, item.Kind)
 		}
 
 		status := normalizeEvidenceStatus(item.Status)
 		if !status.valid() {
-			return Evaluation{}, fmt.Errorf("invalid status %q for evidence %q", item.Status, item.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid status %q for evidence %q", errInvalidProtectionAssessment, item.Status, item.Kind)
 		}
 
 		if _, ok := seen[item.Kind]; ok {
-			return Evaluation{}, fmt.Errorf("duplicate evidence kind %q", item.Kind)
+			return Evaluation{}, fmt.Errorf("%w: duplicate evidence kind %q", errInvalidProtectionAssessment, item.Kind)
 		}
 
 		seen[item.Kind] = struct{}{}
@@ -220,7 +222,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 		}
 
 		if status == EvidenceNotApplicable {
-			return Evaluation{}, fmt.Errorf("required evidence %q cannot be not applicable", kind)
+			return Evaluation{}, fmt.Errorf("%w: required evidence %q cannot be not applicable", errInvalidProtectionAssessment, kind)
 		}
 
 		switch status {
@@ -410,11 +412,11 @@ func (r RecoveryEvidence) Validate() error {
 	}
 
 	if !r.BackupStatus.valid() || r.BackupStatus == EvidenceNotApplicable {
-		return fmt.Errorf("invalid backup status %q", r.BackupStatus)
+		return fmt.Errorf("%w: invalid backup status %q", errInvalidProtectionAssessment, r.BackupStatus)
 	}
 
 	if !r.IntegrityStatus.valid() || r.IntegrityStatus == EvidenceNotApplicable {
-		return fmt.Errorf("invalid integrity status %q", r.IntegrityStatus)
+		return fmt.Errorf("%w: invalid integrity status %q", errInvalidProtectionAssessment, r.IntegrityStatus)
 	}
 
 	if r.RestoreTest == nil {
@@ -423,11 +425,11 @@ func (r RecoveryEvidence) Validate() error {
 
 	t := r.RestoreTest
 	if !t.Type.valid() {
-		return fmt.Errorf("invalid restore verification type %q", t.Type)
+		return fmt.Errorf("%w: invalid restore verification type %q", errInvalidProtectionAssessment, t.Type)
 	}
 
 	if t.Status != EvidencePassing && t.Status != EvidenceFailing {
-		return fmt.Errorf("restore test status must be passing or failing, got %q", t.Status)
+		return fmt.Errorf("%w: restore test status must be passing or failing, got %q", errInvalidProtectionAssessment, t.Status)
 	}
 
 	if t.CompletedAt.IsZero() {
@@ -435,11 +437,11 @@ func (r RecoveryEvidence) Validate() error {
 	}
 
 	if !t.FailureCategory.valid() {
-		return fmt.Errorf("invalid failure category %q", t.FailureCategory)
+		return fmt.Errorf("%w: invalid failure category %q", errInvalidProtectionAssessment, t.FailureCategory)
 	}
 
 	if t.Status == EvidencePassing && t.FailureCategory != FailureNone {
-		return fmt.Errorf("passing restore test cannot have failure category %q", t.FailureCategory)
+		return fmt.Errorf("%w: passing restore test cannot have failure category %q", errInvalidProtectionAssessment, t.FailureCategory)
 	}
 
 	if t.Status == EvidenceFailing && t.FailureCategory == FailureNone {
@@ -449,11 +451,11 @@ func (r RecoveryEvidence) Validate() error {
 	seenChecks := map[ValidationCheck]struct{}{}
 	for _, check := range t.Checks {
 		if !check.valid() {
-			return fmt.Errorf("invalid validation check %q", check)
+			return fmt.Errorf("%w: invalid validation check %q", errInvalidProtectionAssessment, check)
 		}
 
 		if _, ok := seenChecks[check]; ok {
-			return fmt.Errorf("duplicate validation check %q", check)
+			return fmt.Errorf("%w: duplicate validation check %q", errInvalidProtectionAssessment, check)
 		}
 
 		seenChecks[check] = struct{}{}
