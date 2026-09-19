@@ -13,6 +13,8 @@ import (
 	"sync"
 )
 
+var errInvalidDatasetScopeStore = errors.New("invalid dataset-scope mapping store")
+
 const (
 	datasetScopeStoreVersion = 1
 	maxDatasetScopeMappings  = 4096
@@ -175,7 +177,7 @@ func (s *FileDatasetScopeStore) loadMappings() ([]DatasetScopeMapping, error) {
 	}
 
 	if stored.Version != datasetScopeStoreVersion {
-		return nil, fmt.Errorf("unsupported dataset-scope mapping store version %d", stored.Version)
+		return nil, fmt.Errorf("%w: unsupported dataset-scope mapping store version %d", errInvalidDatasetScopeStore, stored.Version)
 	}
 
 	if err := validateDatasetScopeMappings(stored.Mappings); err != nil {
@@ -187,7 +189,7 @@ func (s *FileDatasetScopeStore) loadMappings() ([]DatasetScopeMapping, error) {
 
 func validateDatasetScopeMappings(mappings []DatasetScopeMapping) error {
 	if len(mappings) > maxDatasetScopeMappings {
-		return fmt.Errorf("dataset-scope mapping count exceeds %d", maxDatasetScopeMappings)
+		return fmt.Errorf("%w: dataset-scope mapping count exceeds %d", errInvalidDatasetScopeStore, maxDatasetScopeMappings)
 	}
 
 	seenDatasets := make(map[string]struct{}, len(mappings))
@@ -197,7 +199,7 @@ func validateDatasetScopeMappings(mappings []DatasetScopeMapping) error {
 		}
 
 		if _, exists := seenDatasets[mapping.DatasetID]; exists {
-			return fmt.Errorf("duplicate dataset-scope mapping for dataset %q", mapping.DatasetID)
+			return fmt.Errorf("%w: duplicate dataset-scope mapping for dataset %q", errInvalidDatasetScopeStore, mapping.DatasetID)
 		}
 
 		seenDatasets[mapping.DatasetID] = struct{}{}
