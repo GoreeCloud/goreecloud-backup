@@ -15,6 +15,7 @@ import (
 // State is the user-facing protection state for a protected system or dataset.
 type State string
 
+// StateUnprotected and related values describe user-facing protection state.
 const (
 	StateUnprotected     State = "unprotected"
 	StateConfigured      State = "configured"
@@ -27,6 +28,7 @@ const (
 // EvidenceStatus describes the current status of one recovery-assurance check.
 type EvidenceStatus string
 
+// EvidenceUnknown and related values describe bounded evidence status.
 const (
 	EvidenceUnknown       EvidenceStatus = "unknown"
 	EvidencePassing       EvidenceStatus = "passing"
@@ -55,6 +57,7 @@ func (s EvidenceStatus) valid() bool {
 // EvidenceKind identifies a bounded product-layer recovery-assurance check.
 type EvidenceKind string
 
+// EvidenceRepositoryAvailable and related values identify recovery-assurance checks.
 const (
 	EvidenceRepositoryAvailable    EvidenceKind = "repository_available"
 	EvidenceCredentialsRecoverable EvidenceKind = "credentials_recoverable"
@@ -132,6 +135,7 @@ type Assessment struct {
 // Glaze UI consumers without exposing private backup contents.
 type ReasonCode string
 
+// ReasonNotConfigured and related values explain evaluated protection state.
 const (
 	ReasonNotConfigured              ReasonCode = "not_configured"
 	ReasonBackupInProgress           ReasonCode = "backup_in_progress"
@@ -291,6 +295,7 @@ func sortEvidenceKinds(v []EvidenceKind) {
 // VerificationType describes the bounded kind of representative restore test.
 type VerificationType string
 
+// VerificationFileSample and related values identify representative restore tests.
 const (
 	VerificationFileSample            VerificationType = "file_sample"
 	VerificationMetadataSample        VerificationType = "metadata_sample"
@@ -311,6 +316,7 @@ func (v VerificationType) valid() bool {
 // ValidationCheck identifies what a restore test actually validated.
 type ValidationCheck string
 
+// ValidationContentHash and related values identify restore-validation checks.
 const (
 	ValidationContentHash         ValidationCheck = "content_hash"
 	ValidationMetadata            ValidationCheck = "metadata"
@@ -334,6 +340,7 @@ func (v ValidationCheck) valid() bool {
 // other sensitive information.
 type FailureCategory string
 
+// FailureNone and related values classify bounded restore-test failures.
 const (
 	FailureNone                  FailureCategory = "none"
 	FailureRepositoryUnavailable FailureCategory = "repository_unavailable"
