@@ -208,5 +208,5 @@ func (s CheckpointStatus) ReadyForProtectedChange() bool {
 // subject to the separately authenticated and authorized runtime boundary; a
 // CheckpointSubmission is correlation evidence, not a bearer credential.
 type CheckpointStatusProvider interface {
-	CheckpointStatus(context.Context, string) (CheckpointStatus, error)
+	CheckpointStatus(ctx context.Context, operationID string) (CheckpointStatus, error)
 }
