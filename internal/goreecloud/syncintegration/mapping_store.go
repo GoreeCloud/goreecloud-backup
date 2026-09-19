@@ -74,7 +74,7 @@ func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []
 	}
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	snapshot := append([]DatasetScopeMapping(nil), mappings...)
@@ -96,7 +96,7 @@ func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []
 	defer s.mu.Unlock()
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	return writePrivateAtomicFile(s.path, payload)
@@ -116,7 +116,7 @@ func (s *FileDatasetScopeStore) ResolveBackupScope(ctx context.Context, datasetI
 	}
 
 	if err := ctx.Err(); err != nil {
-		return DatasetScopeMapping{}, err
+		return DatasetScopeMapping{}, fmt.Errorf("context state: %w", err)
 	}
 
 	if err := validateOpaqueIdentifier("dataset ID", datasetID); err != nil {
