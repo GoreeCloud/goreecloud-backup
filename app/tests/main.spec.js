@@ -174,11 +174,10 @@ function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
 }
 
 /**
- * Closes the packaged Electron test process without allowing teardown to hang
- * indefinitely. The embedded backup servers are stopped first. Playwright gets
- * a bounded graceful-close window; if the packaged process is still alive, the
- * test harness terminates it and still waits for the OS-level exit signal
- * before removing the temporary profile.
+ * Closes the isolated packaged Electron test process without allowing teardown
+ * to consume the test timeout. The embedded test servers receive an immediate
+ * stop request, then the test-only Electron process is terminated and its
+ * OS-level exit is observed before the temporary profile is removed.
  *
  * @param {Electron.App} app
  * @returns {Promise<void>}
@@ -187,13 +186,15 @@ async function closePackagedApp(app) {
   const packagedProcess = app.process();
   const processExited = waitForElectronProcessExit(packagedProcess, 10000);
 
+  let stopRequestTimeoutID;
+
   try {
     await Promise.race([
       app.evaluate(async ({ app: electronApplication }) => {
         electronApplication.testHooks.stopAllServersNow();
       }),
       new Promise((_, reject) => {
-        setTimeout(() => {
+        stopRequestTimeoutID = setTimeout(() => {
           reject(new Error("timed out requesting embedded server shutdown"));
         }, 2000);
       }),
@@ -202,6 +203,8 @@ async function closePackagedApp(app) {
     // Teardown must still terminate the isolated test process even if the
     // renderer/main-process connection is already degraded.
     console.warn("unable to request embedded server shutdown:", error.message);
+  } finally {
+    clearTimeout(stopRequestTimeoutID);
   }
 
   if (
