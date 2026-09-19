@@ -75,12 +75,12 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
           govulncheck ./... 2>&1 | tee dependency-evidence/govulncheck.txt
 
-      - name: Verify Electron production lockfile
+      - name: Verify Electron lockfile installation
         working-directory: app
         shell: bash
         run: |
           set -euo pipefail
-          npm ci --ignore-scripts --omit=dev 2>&1 | tee ../dependency-evidence/npm-ci-production.txt
+          npm ci --ignore-scripts 2>&1 | tee ../dependency-evidence/npm-ci-lockfile.txt
 
       - name: Validate Electron production dependency tree
         working-directory: app
