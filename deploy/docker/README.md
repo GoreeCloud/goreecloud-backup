@@ -29,6 +29,8 @@ The deployment definition intentionally:
 - uses a read-only container root filesystem;
 - requires a runtime UID/GID selected from fresh live source-readability evidence;
 - injects the repository password from a protected host file;
+- preserves the verified historical repository source identity `root@goreecloud-vps-01:/source` without granting root runtime privileges;
+- refuses backup operations unless repository status reports the expected client identity, SFTP storage type, writable connection, and preserved repository Unique ID;
 - mounts the SFTP private key and known_hosts read-only at compatibility paths where the preserved repository requires them;
 - keeps repository credential persistence disabled;
 - keeps backup source mounts out of the base Compose file so historical documentation cannot silently expand or shrink protection scope;
@@ -97,12 +99,14 @@ Populate the verified SFTP endpoint fields in the protected deployment `.env`, s
 
 The bootstrap operation:
 
+- explicitly writes the governed repository client hostname and username into the local repository configuration instead of inheriting an ephemeral container identity;
 - reads the repository password through the Compose secret;
 - uses the private key and known_hosts through read-only mounted files;
 - does not pass reusable key/password material in command-line arguments;
 - refuses to overwrite an existing `repository.config`;
 - connects to the existing repository rather than creating a new repository;
-- immediately verifies the resulting repository connection with `repository status`.
+- immediately verifies the resulting repository connection with `repository status`;
+- rejects the connection if the repository Unique ID is not `9c06aa19383f1e002c97ecb9ed8e4524473534fee5f21aef1f1911117be78e50`.
 
 After connection, use:
 

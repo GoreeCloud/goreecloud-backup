@@ -5,6 +5,7 @@ services:
     image: "${GOREECLOUD_BACKUP_IMAGE:?Set GOREECLOUD_BACKUP_IMAGE to an approved exact tag@sha256 digest}"
     restart: "no"
     init: true
+    hostname: "${GOREECLOUD_BACKUP_CLIENT_HOSTNAME:?Set the governed repository client hostname}"
 
     # Select the runtime identity from verified live source permissions.
     # Do not default to root or an arbitrary service UID.
@@ -25,6 +26,9 @@ services:
       KOPIA_LOG_DIR: /app/logs
       KOPIA_PERSIST_CREDENTIALS_ON_CONNECT: "false"
       KOPIA_CHECK_FOR_UPDATES: "false"
+      GOREECLOUD_BACKUP_CLIENT_HOSTNAME: "${GOREECLOUD_BACKUP_CLIENT_HOSTNAME:?Set the governed repository client hostname}"
+      GOREECLOUD_BACKUP_CLIENT_USERNAME: "${GOREECLOUD_BACKUP_CLIENT_USERNAME:?Set the governed repository client username}"
+      GOREECLOUD_BACKUP_REPOSITORY_ID: "${GOREECLOUD_BACKUP_REPOSITORY_ID:?Set the preserved repository Unique ID}"
       GOREECLOUD_BACKUP_SFTP_HOST: "${GOREECLOUD_BACKUP_SFTP_HOST:?Set the verified SFTP repository host}"
       GOREECLOUD_BACKUP_SFTP_PORT: "${GOREECLOUD_BACKUP_SFTP_PORT:?Set the verified SFTP repository port}"
       GOREECLOUD_BACKUP_SFTP_USERNAME: "${GOREECLOUD_BACKUP_SFTP_USERNAME:?Set the verified SFTP repository username}"

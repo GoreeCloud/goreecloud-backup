@@ -15,6 +15,9 @@ fi
 
 connect_existing_sftp_repository() {
   : "${KOPIA_PASSWORD:?repository password secret is required to connect the repository}"
+  : "${GOREECLOUD_BACKUP_CLIENT_HOSTNAME:?Set the repository client hostname}"
+  : "${GOREECLOUD_BACKUP_CLIENT_USERNAME:?Set the repository client username}"
+  : "${GOREECLOUD_BACKUP_REPOSITORY_ID:?Set the expected preserved repository Unique ID}"
   : "${GOREECLOUD_BACKUP_SFTP_HOST:?Set the verified SFTP host}"
   : "${GOREECLOUD_BACKUP_SFTP_PORT:?Set the verified SFTP port}"
   : "${GOREECLOUD_BACKUP_SFTP_USERNAME:?Set the verified SFTP username}"
@@ -27,7 +30,10 @@ connect_existing_sftp_repository() {
     exit 1
   fi
 
-  exec "$backup_bin" repository connect sftp \
+  exec "$backup_bin" repository connect \
+    --override-hostname "$GOREECLOUD_BACKUP_CLIENT_HOSTNAME" \
+    --override-username "$GOREECLOUD_BACKUP_CLIENT_USERNAME" \
+    sftp \
     --host "$GOREECLOUD_BACKUP_SFTP_HOST" \
     --port "$GOREECLOUD_BACKUP_SFTP_PORT" \
     --username "$GOREECLOUD_BACKUP_SFTP_USERNAME" \
@@ -36,13 +42,71 @@ connect_existing_sftp_repository() {
     --known-hosts /run/secrets/kopia-sftp-known_hosts
 }
 
-if [ "${1:-}" = "__goreecloud_connect_existing_sftp" ]; then
-  shift
-  if [ "$#" -ne 0 ]; then
-    echo "internal repository-connect operation does not accept extra arguments" >&2
-    exit 2
-  fi
-  connect_existing_sftp_repository
-fi
+validate_connected_repository() {
+  : "${GOREECLOUD_BACKUP_CLIENT_HOSTNAME:?Set the repository client hostname}"
+  : "${GOREECLOUD_BACKUP_CLIENT_USERNAME:?Set the repository client username}"
+  : "${GOREECLOUD_BACKUP_REPOSITORY_ID:?Set the expected preserved repository Unique ID}"
 
-exec "$backup_bin" "$@"
+  status_output="$("$backup_bin" repository status)"
+
+  printf '%s\n' "$status_output" \
+    | grep -Eq "^Hostname:[[:space:]]+${GOREECLOUD_BACKUP_CLIENT_HOSTNAME}$" \
+    || {
+      echo "repository client hostname does not match the governed deployment identity" >&2
+      exit 1
+    }
+
+  printf '%s\n' "$status_output" \
+    | grep -Eq "^Username:[[:space:]]+${GOREECLOUD_BACKUP_CLIENT_USERNAME}$" \
+    || {
+      echo "repository client username does not match the governed deployment identity" >&2
+      exit 1
+    }
+
+  printf '%s\n' "$status_output" \
+    | grep -Eq '^Read-only:[[:space:]]+false \
+    || {
+      echo "repository connection is unexpectedly read-only" >&2
+      exit 1
+    }
+
+  printf '%s\n' "$status_output" \
+    | grep -Eq '^Storage type:[[:space:]]+sftp \
+    || {
+      echo "repository storage type is not the governed SFTP boundary" >&2
+      exit 1
+    }
+
+  printf '%s\n' "$status_output" \
+    | grep -Eq "^Unique ID:[[:space:]]+${GOREECLOUD_BACKUP_REPOSITORY_ID}$" \
+    || {
+      echo "connected repository Unique ID does not match the preserved recovery repository" >&2
+      exit 1
+    }
+
+  echo "repository identity validated"
+}
+
+case "${1:-}" in
+  __goreecloud_connect_existing_sftp)
+    shift
+    if [ "$#" -ne 0 ]; then
+      echo "internal repository-connect operation does not accept extra arguments" >&2
+      exit 2
+    fi
+    connect_existing_sftp_repository
+    ;;
+
+  __goreecloud_validate_repository)
+    shift
+    if [ "$#" -ne 0 ]; then
+      echo "internal repository-validation operation does not accept extra arguments" >&2
+      exit 2
+    fi
+    validate_connected_repository
+    ;;
+
+  *)
+    exec "$backup_bin" "$@"
+    ;;
+esac

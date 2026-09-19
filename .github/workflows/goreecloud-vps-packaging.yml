@@ -47,6 +47,9 @@ jobs:
           GOREECLOUD_BACKUP_IMAGE: ghcr.io/goreecloud/goreecloud-backup:0.0.0-ci@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           GOREECLOUD_BACKUP_UID: "10001"
           GOREECLOUD_BACKUP_GID: "10001"
+          GOREECLOUD_BACKUP_CLIENT_HOSTNAME: goreecloud-vps-01
+          GOREECLOUD_BACKUP_CLIENT_USERNAME: root
+          GOREECLOUD_BACKUP_REPOSITORY_ID: 9c06aa19383f1e002c97ecb9ed8e4524473534fee5f21aef1f1911117be78e50
           GOREECLOUD_BACKUP_CONFIG_DIR: /tmp/goreecloud-backup/config
           GOREECLOUD_BACKUP_CACHE_DIR: /tmp/goreecloud-backup/cache
           GOREECLOUD_BACKUP_LOG_DIR: /tmp/goreecloud-backup/logs
@@ -158,7 +161,12 @@ jobs:
           grep -q -- '--fail-fast /source' deploy/docker/goreecloud-backup.sh
           grep -q 'connect-repository' deploy/docker/goreecloud-backup.sh
           grep -q '__goreecloud_connect_existing_sftp' deploy/docker/entrypoint.sh
-          grep -q 'repository connect sftp' deploy/docker/entrypoint.sh
+          grep -q '__goreecloud_validate_repository' deploy/docker/entrypoint.sh
+          grep -q -- '--override-hostname' deploy/docker/entrypoint.sh
+          grep -q -- '--override-username' deploy/docker/entrypoint.sh
+          grep -q 'Unique ID:' deploy/docker/entrypoint.sh
+          grep -q 'Storage type:' deploy/docker/entrypoint.sh
+          grep -q 'repository connect' deploy/docker/entrypoint.sh
           grep -q 'repository status' deploy/docker/goreecloud-backup.sh
           grep -q 'snapshot create /source' deploy/docker/goreecloud-backup.sh
 

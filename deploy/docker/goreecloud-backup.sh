@@ -62,6 +62,10 @@ repository_status() {
   compose run --rm backup repository status
 }
 
+validate_repository_identity() {
+  compose run --rm backup __goreecloud_validate_repository >/dev/null
+}
+
 validate_compose
 
 case "$ACTION" in
@@ -70,6 +74,7 @@ case "$ACTION" in
     ;;
 
   repository-status)
+    validate_repository_identity
     repository_status
     ;;
 
@@ -80,6 +85,7 @@ case "$ACTION" in
     fi
 
     compose run --rm backup __goreecloud_connect_existing_sftp
+    validate_repository_identity
     repository_status
     ;;
 
@@ -89,9 +95,10 @@ case "$ACTION" in
     # identity. This prevents an empty /source snapshot from looking successful.
     validate_source_scope
 
-    # Repository reachability and authentication must succeed before a snapshot
-    # is attempted. Failure is explicit; scheduling/monitoring handles alerting.
-    repository_status >/dev/null
+    # The persistent repository config must resolve to the exact governed
+    # client identity and preserved off-VPS repository before any write occurs.
+    validate_repository_identity
+
     compose run --rm backup snapshot create --fail-fast /source
     ;;
 
