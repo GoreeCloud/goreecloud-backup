@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-# Both base images are intentionally required build arguments.
-# Release builds must pass exact tag-and-digest references.
+# Release builds must pass exact tag-and-digest base-image references.
 ARG GO_BUILD_IMAGE
 ARG RUNTIME_IMAGE
 
@@ -40,15 +39,11 @@ RUN apt-get update \
 
 COPY --from=build /out/goreecloud-backup /usr/local/bin/goreecloud-backup
 COPY deploy/docker/entrypoint.sh /usr/local/bin/goreecloud-backup-entrypoint
-COPY deploy/docker/healthcheck.sh /usr/local/bin/goreecloud-backup-healthcheck
 
 RUN chmod 0755 \
       /usr/local/bin/goreecloud-backup \
       /usr/local/bin/goreecloud-backup-entrypoint \
-      /usr/local/bin/goreecloud-backup-healthcheck \
-    && mkdir -p /app/config /app/cache /app/logs /source /restore
-
-EXPOSE 51515
+    && mkdir -p /app/config /app/cache /app/logs /app/tmp /source /restore
 
 ENTRYPOINT ["/usr/local/bin/goreecloud-backup-entrypoint"]
-CMD ["server", "start", "--address=http://0.0.0.0:51515", "--persistent-logs"]
+CMD ["--version"]
