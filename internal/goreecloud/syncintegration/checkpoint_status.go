@@ -11,6 +11,7 @@ import (
 // from the later existence of an independently usable recovery point.
 type CheckpointLifecycleState string
 
+// CheckpointStateAccepted and related values describe checkpoint lifecycle state.
 const (
 	CheckpointStateAccepted  CheckpointLifecycleState = "accepted"
 	CheckpointStateRunning   CheckpointLifecycleState = "running"
@@ -32,6 +33,7 @@ func (s CheckpointLifecycleState) valid() bool {
 // errors into GoreeCloud Sync.
 type CheckpointFailureCategory string
 
+// CheckpointFailureNone and related values classify bounded checkpoint failures.
 const (
 	CheckpointFailureNone         CheckpointFailureCategory = ""
 	CheckpointFailureExecution    CheckpointFailureCategory = "execution"
