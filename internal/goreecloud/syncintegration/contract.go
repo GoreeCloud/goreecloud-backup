@@ -92,7 +92,7 @@ func NewProtectionView(datasetID string, evaluatedAt time.Time, evaluation prote
 	}
 
 	if evaluatedAt.IsZero() {
-		return ProtectionView{}, errors.New("evaluation time must not be zero")
+		return ProtectionView{}, errEvaluationTimeZero
 	}
 
 	if !validProtectionState(evaluation.State) {

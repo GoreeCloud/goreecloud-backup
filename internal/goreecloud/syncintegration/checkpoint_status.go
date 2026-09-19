@@ -104,7 +104,7 @@ func (s CheckpointStatus) Validate() error {
 	}
 
 	if s.ObservedAt.IsZero() {
-		return errors.New("checkpoint status observation time must not be zero")
+		return errCheckpointStatusObservedTimeZero
 	}
 
 	if !s.State.valid() {
@@ -118,15 +118,15 @@ func (s CheckpointStatus) Validate() error {
 		}
 	case CheckpointStateFailed:
 		if !s.FailureCategory.validFailure() {
-			return errors.New("failed checkpoint requires a bounded failure category")
+			return errCheckpointFailureCategoryRequired
 		}
 
 		if s.RecoveryPointID != "" || s.RecoveryPointUsable || s.IntegrityVerified || s.RestoreVerified {
-			return errors.New("failed checkpoint must not claim a usable or verified recovery point")
+			return errFailedCheckpointRecoveryEvidence
 		}
 	case CheckpointStateCompleted:
 		if s.FailureCategory != CheckpointFailureNone {
-			return errors.New("completed checkpoint must not carry a failure category")
+			return errCompletedCheckpointFailureCategory
 		}
 
 		if err := validateOpaqueIdentifier("recovery point ID", s.RecoveryPointID); err != nil {
@@ -134,7 +134,7 @@ func (s CheckpointStatus) Validate() error {
 		}
 
 		if s.RestoreVerified && (!s.RecoveryPointUsable || !s.IntegrityVerified) {
-			return errors.New("restore verification requires a usable integrity-verified recovery point")
+			return errRestoreVerificationEvidenceIncomplete
 		}
 	}
 
@@ -166,27 +166,27 @@ func (s CheckpointStatus) ValidateForSubmission(submission CheckpointSubmission)
 	}
 
 	if submission.AcceptedAt.IsZero() {
-		return errors.New("checkpoint submission acceptance time must not be zero")
+		return errCheckpointSubmissionAcceptedAtZero
 	}
 
 	if s.RequestID != submission.RequestID {
-		return errors.New("checkpoint status request ID does not match submission")
+		return errCheckpointStatusRequestMismatch
 	}
 
 	if s.OperationID != submission.OperationID {
-		return errors.New("checkpoint status operation ID does not match submission")
+		return errCheckpointStatusOperationMismatch
 	}
 
 	if s.DatasetID != submission.DatasetID {
-		return errors.New("checkpoint status dataset ID does not match submission")
+		return errCheckpointStatusDatasetMismatch
 	}
 
 	if s.BackupScopeID != submission.BackupScopeID {
-		return errors.New("checkpoint status Backup scope ID does not match submission")
+		return errCheckpointStatusScopeMismatch
 	}
 
 	if s.ObservedAt.Before(submission.AcceptedAt) {
-		return errors.New("checkpoint status predates checkpoint submission")
+		return errCheckpointStatusPredatesSubmission
 	}
 
 	return nil

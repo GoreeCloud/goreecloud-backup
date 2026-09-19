@@ -60,12 +60,12 @@ type FileCheckpointStatusStore struct {
 // path. It does not create the file or its parent directory.
 func NewFileCheckpointStatusStore(path string) (*FileCheckpointStatusStore, error) {
 	if path == "" {
-		return nil, errors.New("checkpoint status store path must not be empty")
+		return nil, errCheckpointStorePathEmpty
 	}
 
 	clean := filepath.Clean(path)
 	if clean == "." || filepath.Base(clean) == "." || filepath.Base(clean) == string(filepath.Separator) {
-		return nil, errors.New("checkpoint status store path must identify a file")
+		return nil, errCheckpointStorePathInvalid
 	}
 
 	return &FileCheckpointStatusStore{path: clean, mu: sync.RWMutex{}}, nil
@@ -77,11 +77,11 @@ func NewFileCheckpointStatusStore(path string) (*FileCheckpointStatusStore, erro
 // are part of the immutable correlation boundary.
 func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submission CheckpointSubmission) error {
 	if s == nil || s.path == "" {
-		return errors.New("checkpoint status store is not initialized")
+		return errCheckpointStoreNotInitialized
 	}
 
 	if ctx == nil {
-		return errors.New("context is required")
+		return errContextRequired
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -141,11 +141,11 @@ func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submis
 // original submission, and follow the allowed lifecycle progression.
 func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status CheckpointStatus) error {
 	if s == nil || s.path == "" {
-		return errors.New("checkpoint status store is not initialized")
+		return errCheckpointStoreNotInitialized
 	}
 
 	if ctx == nil {
-		return errors.New("context is required")
+		return errContextRequired
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -185,7 +185,7 @@ func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status Che
 		}
 
 		if !status.ObservedAt.After(last.ObservedAt) {
-			return errors.New("checkpoint status observation time must advance")
+			return errCheckpointStatusMustAdvance
 		}
 
 		if err := validateCheckpointStatusTransition(last, status); err != nil {
@@ -210,11 +210,11 @@ func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status Che
 // receives no mutation authority through this provider.
 func (s *FileCheckpointStatusStore) CheckpointStatus(ctx context.Context, operationID string) (CheckpointStatus, error) {
 	if s == nil || s.path == "" {
-		return CheckpointStatus{}, errors.New("checkpoint status store is not initialized")
+		return CheckpointStatus{}, errCheckpointStoreNotInitialized
 	}
 
 	if ctx == nil {
-		return CheckpointStatus{}, errors.New("context is required")
+		return CheckpointStatus{}, errContextRequired
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -277,19 +277,19 @@ func validateCheckpointStatusTransition(previous, next CheckpointStatus) error {
 			return nil
 		case CheckpointStateCompleted:
 			if previous.RecoveryPointID != next.RecoveryPointID {
-				return errors.New("completed checkpoint recovery point ID must not change")
+				return errCompletedRecoveryPointIDChanged
 			}
 
 			if previous.RecoveryPointUsable && !next.RecoveryPointUsable {
-				return errors.New("completed checkpoint usable evidence must not regress")
+				return errCompletedUsableEvidenceRegressed
 			}
 
 			if previous.IntegrityVerified && !next.IntegrityVerified {
-				return errors.New("completed checkpoint integrity evidence must not regress")
+				return errCompletedIntegrityEvidenceRegressed
 			}
 
 			if previous.RestoreVerified && !next.RestoreVerified {
-				return errors.New("completed checkpoint restore evidence must not regress")
+				return errCompletedRestoreEvidenceRegressed
 			}
 
 			return nil
@@ -336,11 +336,11 @@ func (s *FileCheckpointStatusStore) loadRecords() ([]checkpointStatusRecord, err
 	}
 
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("checkpoint status store must be a regular file")
+		return nil, errCheckpointStoreNotRegularFile
 	}
 
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return nil, errors.New("checkpoint status store permissions must not grant group or other access")
+		return nil, errCheckpointStorePermissions
 	}
 
 	payload, err := os.ReadFile(s.path)
