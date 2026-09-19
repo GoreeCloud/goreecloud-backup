@@ -16,6 +16,7 @@ function newServerForRepo(repoID) {
   let runningServerControlPassword = "";
   let runningServerAddress = "";
   let runningServerCertificate = "";
+  let runningServerPollInterval = null;
   let runningServerStatusDetails = {
     startingUp: true,
   };
@@ -127,14 +128,16 @@ function newServerForRepo(repoID) {
       }
 
       const statusPollInterval = setInterval(pollOnce, pollInterval);
+      runningServerPollInterval = statusPollInterval;
 
       runningServerProcess.on("close", (code, signal) => {
         this.appendToLog(
           `child process exited with code ${code} and signal ${signal}`,
         );
-        if (runningServerProcess === p) {
-          clearInterval(statusPollInterval);
+        clearInterval(statusPollInterval);
 
+        if (runningServerProcess === p) {
+          runningServerPollInterval = null;
           runningServerAddress = "";
           runningServerPassword = "";
           runningServerControlPassword = "";
@@ -216,12 +219,45 @@ function newServerForRepo(repoID) {
       }
 
       runningServerProcess.kill();
+      if (runningServerPollInterval) {
+        clearInterval(runningServerPollInterval);
+        runningServerPollInterval = null;
+      }
       runningServerAddress = "";
       runningServerPassword = "";
+      runningServerControlPassword = "";
       runningServerCertSHA256 = "";
       runningServerCertificate = "";
       runningServerProcess = null;
       this.raiseStatusUpdatedEvent();
+    },
+
+    async stopServerAndWait() {
+      const serverProcess = runningServerProcess;
+      if (!serverProcess) {
+        this.stopServer();
+        return;
+      }
+
+      const closed = new Promise((resolve) => {
+        serverProcess.once("close", resolve);
+        serverProcess.once("error", resolve);
+      });
+
+      this.stopServer();
+
+      let timeoutID;
+      const timeout = new Promise((_, reject) => {
+        timeoutID = setTimeout(() => {
+          reject(new Error("timed out waiting for embedded server shutdown"));
+        }, 5000);
+      });
+
+      try {
+        await Promise.race([closed, timeout]);
+      } finally {
+        clearTimeout(timeoutID);
+      }
     },
 
     getServerAddress() {

@@ -8,7 +8,11 @@ import (
 	"github.com/kopia/htmluibuild"
 )
 
-// AssetFile exposes HTML UI files.
+// AssetFile exposes the upstream HTML UI through the GoreeCloud presentation overlay.
+//
+// The overlay is intentionally presentation-only: it delegates all upstream assets and
+// application behavior unchanged while adding GoreeCloud Backup identity and local Glaze UI
+// resources at the HTTP file-system boundary.
 func AssetFile() http.FileSystem {
-	return htmluibuild.AssetFile()
+	return newGoreeCloudAssetFile(htmluibuild.AssetFile())
 }

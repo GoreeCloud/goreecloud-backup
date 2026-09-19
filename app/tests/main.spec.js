@@ -12,7 +12,7 @@ let mainPath;
 let executablePath;
 let tmpAppDataDir;
 
-function getKopiaUIDir() {
+function getGoreeCloudBackupDir() {
   switch (process.platform + "/" + process.arch) {
     case "darwin/x64":
       return path.resolve("../dist/kopia-ui/mac");
@@ -20,10 +20,10 @@ function getKopiaUIDir() {
       return path.resolve("../dist/kopia-ui/mac-arm64");
     case "linux/x64":
       // on Linux we must run from installed location due to AppArmor profile
-      return path.resolve("/opt/KopiaUI");
+      return path.resolve("/opt/GoreeCloud Backup");
     case "linux/arm64":
       // on Linux we must run from installed location due to AppArmor profile
-      return path.resolve("/opt/KopiaUI");
+      return path.resolve("/opt/GoreeCloud Backup");
     case "win32/x64":
       return path.resolve("../dist/kopia-ui/win-unpacked");
     default:
@@ -31,12 +31,12 @@ function getKopiaUIDir() {
   }
 }
 
-function getMainPath(kopiauiDir) {
+function getMainPath(appDir) {
   switch (process.platform) {
     case "darwin":
       return path.join(
-        kopiauiDir,
-        "KopiaUI.app",
+        appDir,
+        "GoreeCloud Backup.app",
         "Contents",
         "Resources",
         "app.asar",
@@ -45,7 +45,7 @@ function getMainPath(kopiauiDir) {
       );
     default:
       return path.join(
-        kopiauiDir,
+        appDir,
         "resources",
         "app.asar",
         "public",
@@ -54,20 +54,22 @@ function getMainPath(kopiauiDir) {
   }
 }
 
-function getExecutablePath(kopiauiDir) {
+function getExecutablePath(appDir) {
   switch (process.platform) {
     case "win32":
-      return path.join(kopiauiDir, "KopiaUI.exe");
+      return path.join(appDir, "GoreeCloud Backup.exe");
     case "darwin":
       return path.join(
-        kopiauiDir,
-        "KopiaUI.app",
+        appDir,
+        "GoreeCloud Backup.app",
         "Contents",
         "MacOS",
-        "KopiaUI",
+        "GoreeCloud Backup",
       );
     default:
-      return path.join(kopiauiDir, "kopia-ui");
+      // Linux intentionally retains the inherited internal executable name for
+      // package/AppArmor compatibility while the installed product identity is GoreeCloud Backup.
+      return path.join(appDir, "kopia-ui");
   }
 }
 
@@ -78,7 +80,9 @@ function getExecutablePath(kopiauiDir) {
  * @returns {string} The path to the created temporary directory.
  */
 function createTemporaryAppDataDir() {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kopia-test-"));
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "goreecloud-backup-test-"),
+  );
   fs.mkdirSync(path.join(tmpDir, "kopia"));
   return tmpDir;
 }
@@ -92,7 +96,7 @@ function createTemporaryAppDataDir() {
  * @returns {Promise<Electron.App>} - a promise that resolves to the launched app
  */
 async function launchApp(appDataDir) {
-  const electronApp = await electron.launch({
+  const app = await electron.launch({
     args: [mainPath],
     executablePath: executablePath,
     env: {
@@ -101,29 +105,27 @@ async function launchApp(appDataDir) {
     },
   });
 
-  electronApp.on("window", async (page) => {
+  app.on("window", async (page) => {
     const filename = page.url()?.split("/").pop();
     console.log(`Window opened: ${filename}`);
 
-    // capture errors
     page.on("pageerror", (error) => {
       console.error(error);
     });
-    // capture console messages
     page.on("console", (msg) => {
       console.log(msg.text());
     });
   });
 
-  return electronApp;
+  return app;
 }
 
 /**
- * Waits for Kopia to start up by delaying for a specified duration.
+ * Waits for the embedded backup engine to start up by delaying for a specified duration.
  *
  * @returns {Promise<void>} A promise that resolves after the delay.
  */
-function waitForKopiaToStartup() {
+function waitForBackupEngineToStartup() {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -131,12 +133,102 @@ function waitForKopiaToStartup() {
   });
 }
 
-test.beforeAll(() => {
-  const kopiauiDir = getKopiaUIDir();
-  expect(kopiauiDir).not.toBeNull();
+/**
+ * Waits until the packaged Electron child process has actually exited.
+ *
+ * Playwright may finish its close request before Windows releases every handle
+ * beneath the temporary application profile. Waiting for the child-process
+ * exit/close signal keeps test cleanup from racing those handle releases.
+ *
+ * @param {import("child_process").ChildProcess} childProcess
+ * @param {number} timeoutMs
+ * @returns {Promise<void>}
+ */
+function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
+  if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
+    return Promise.resolve();
+  }
 
-  mainPath = getMainPath(kopiauiDir);
-  executablePath = getExecutablePath(kopiauiDir);
+  return new Promise((resolve, reject) => {
+    let timeoutID;
+
+    const cleanup = () => {
+      clearTimeout(timeoutID);
+      childProcess.off("exit", onExit);
+      childProcess.off("close", onExit);
+    };
+
+    const onExit = () => {
+      cleanup();
+      resolve();
+    };
+
+    timeoutID = setTimeout(() => {
+      cleanup();
+      reject(new Error("timed out waiting for packaged Electron process exit"));
+    }, timeoutMs);
+
+    childProcess.once("exit", onExit);
+    childProcess.once("close", onExit);
+  });
+}
+
+/**
+ * Closes the isolated packaged Electron test process without allowing teardown
+ * to consume the test timeout. The embedded test servers receive an immediate
+ * stop request, then the test-only Electron process is terminated and its
+ * OS-level exit is observed before the temporary profile is removed.
+ *
+ * @param {Electron.App} app
+ * @returns {Promise<void>}
+ */
+async function closePackagedApp(app) {
+  const packagedProcess = app.process();
+  const processExited = waitForElectronProcessExit(packagedProcess, 10000);
+
+  let stopRequestTimeoutID;
+
+  try {
+    await Promise.race([
+      app.evaluate(async ({ app: electronApplication }) => {
+        electronApplication.testHooks.stopAllServersNow();
+      }),
+      new Promise((_, reject) => {
+        stopRequestTimeoutID = setTimeout(() => {
+          reject(new Error("timed out requesting embedded server shutdown"));
+        }, 2000);
+      }),
+    ]);
+  } catch (error) {
+    // Teardown must still terminate the isolated test process even if the
+    // renderer/main-process connection is already degraded.
+    console.warn("unable to request embedded server shutdown:", error.message);
+  } finally {
+    clearTimeout(stopRequestTimeoutID);
+  }
+
+  if (
+    packagedProcess.exitCode === null &&
+    packagedProcess.signalCode === null
+  ) {
+    packagedProcess.kill("SIGKILL");
+  }
+
+  await processExited;
+
+  // Windows can release application-profile handles shortly after process
+  // exit. Give the OS a short bounded interval before recursive cleanup.
+  if (process.platform === "win32") {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+test.beforeAll(() => {
+  const appDir = getGoreeCloudBackupDir();
+  expect(appDir).not.toBeNull();
+
+  mainPath = getMainPath(appDir);
+  executablePath = getExecutablePath(appDir);
 
   console.log("main path", mainPath);
   console.log("executable path", executablePath);
@@ -146,12 +238,21 @@ test.beforeAll(() => {
 });
 
 test.beforeEach(async () => {
+  electronApp = undefined;
   tmpAppDataDir = createTemporaryAppDataDir();
 });
 
 test.afterEach(async () => {
-  await electronApp.close();
-  fs.rmSync(tmpAppDataDir, { recursive: true, force: true });
+  if (electronApp) {
+    await closePackagedApp(electronApp);
+  }
+
+  fs.rmSync(tmpAppDataDir, {
+    recursive: true,
+    force: true,
+    maxRetries: 40,
+    retryDelay: 250,
+  });
 });
 
 test("opens repository window on first start", async () => {
@@ -164,13 +265,9 @@ test("opens repository window on first start", async () => {
   const page = await electronApp.firstWindow();
 
   expect(page).toBeTruthy();
-  await page.waitForNavigation({
-    waitUntil: "networkidle",
-    networkIdleTimeout: 1000,
+  await expect(page).toHaveTitle(/GoreeCloud Backup v\d+/, {
+    timeout: 30000,
   });
-  expect(await page.title()).toMatch(/KopiaUI v\d+/);
-
-  // TODO - we can exercise some UI scenario using 'page'
 
   await electronApp.evaluate(async ({ app }) => {
     return app.testHooks.tray.popUpContextMenu();
@@ -184,7 +281,7 @@ test("opens repository window on first start", async () => {
 test("adds default repository if no repository is configured", async () => {
   electronApp = await launchApp(tmpAppDataDir);
 
-  await waitForKopiaToStartup();
+  await waitForBackupEngineToStartup();
 
   const configs = await electronApp.evaluate(async ({ app }) => {
     return app.testHooks.allConfigs();
@@ -200,7 +297,7 @@ test("doesn't open repository window if the default repository config exists", a
 
   electronApp = await launchApp(tmpAppDataDir);
 
-  await waitForKopiaToStartup();
+  await waitForBackupEngineToStartup();
   const windows = electronApp.windows();
   expect(windows).toHaveLength(0);
 });
@@ -218,7 +315,7 @@ test.describe("when non-default repository config exists", () => {
   test("doesn't open repository window if non-default repository config exists", async () => {
     electronApp = await launchApp(tmpAppDataDir);
 
-    await waitForKopiaToStartup();
+    await waitForBackupEngineToStartup();
     const windows = electronApp.windows();
     expect(windows).toHaveLength(0);
   });
@@ -226,7 +323,7 @@ test.describe("when non-default repository config exists", () => {
   test("doesn't add default repository", async () => {
     electronApp = await launchApp(tmpAppDataDir);
 
-    await waitForKopiaToStartup();
+    await waitForBackupEngineToStartup();
 
     const configs = await electronApp.evaluate(async ({ app }) => {
       return app.testHooks.allConfigs();

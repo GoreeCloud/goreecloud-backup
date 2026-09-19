@@ -1,0 +1,167 @@
+schema_version: "0.4"
+
+component:
+  type: application
+  id: goreecloud-backup
+  product_name: GoreeCloud Backup
+  repository: GoreeCloud/goreecloud-backup
+
+lifecycle: development
+version: "1.0.0"
+
+supported_platforms:
+  - linux
+  - windows
+  - macos
+
+api:
+  versions: []
+  endpoints: []
+
+platform_systems:
+  manager:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - README.md
+      - FEATURES.md
+    notes: GoreeCloud Manager is an intended administrative consumer of Backup protection, repository-health, restore-verification, and recovery-readiness state, but no accepted Manager runtime integration exists on this Development line.
+  privacy_shield:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - README.md
+      - SECURITY.md
+      - docs/goreecloud/OBSERVABILITY.md
+    notes: Privacy-minimization and sensitive-information boundaries are documented in source, but accepted Privacy Shield policy, consent, retention, telemetry, and runtime integration are not established.
+  wardveil_security:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - SECURITY.md
+      - README.md
+    notes: Wardveil Security presentation and security-source contracts exist, but platform runtime acceptance is not established and the exact current Development head retains unresolved release-blocking security findings.
+  everkeep:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - README.md
+      - FEATURES.md
+    notes: GoreeCloud Backup is the operational backup and restoration product beneath the broader Everkeep resilience domain, but accepted Everkeep runtime integration and platform-system conformance are not established.
+  glaze_ui:
+    result: applicable-migration-required
+    version: "1.0.0"
+    evidence:
+      - docs/goreecloud/GLAZE_UI_CONFORMANCE.md
+      - scripts/validate_goreecloud_ui.py
+      - internal/server/goreecloud-ui/glaze.css
+      - internal/server/goreecloud-ui/glaze.accessibility.css
+      - internal/server/goreecloud-ui/backup.css
+    notes: The current owned presentation layer implements Glaze UI 1.0 at canonical source revision d6e446fd8ef251259d16368d50aad90d9287a774. Current mandatory Stable target is Glaze UI 1.5.1 at exact Stable revision 98da57064ede0f334627b632bc16801f580331af. V1.0 source evidence does not transfer to V1.5.1; migration plus representative runtime and accessibility acceptance remain required.
+  mesh:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - README.md
+      - docs/goreecloud-sync-integration.md
+    notes: Bounded Backup and Sync coordination contracts exist in source, but accepted GoreeCloud Mesh capability registration, coordination, event transport, and runtime evidence routing are not established.
+    capabilities: []
+    dependencies: []
+    published_events: []
+    consumed_events: []
+  identity:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - README.md
+      - SECURITY.md
+    notes: Authentication and authorization hardening exists in the maintained fork, but accepted GoreeCloud Identity application integration, workload identity, authorization, session, and recovery-access behavior are not established.
+  policy:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - FEATURES.md
+      - README.md
+    notes: Backup contains source-level protection and freshness-policy concepts, but no accepted GoreeCloud Policy representation, evaluation, distribution, enforcement-coordination, explanation, or policy-evidence integration exists.
+  observability:
+    result: applicable-blocked
+    version: null
+    evidence:
+      - docs/goreecloud/OBSERVABILITY.md
+      - README.md
+    notes: A privacy-conscious structured-observability contract is documented, but no accepted GoreeCloud Observability signal normalization, correlation, freshness, completeness, operational-evidence, or runtime integration exists.
+
+health:
+  health_endpoint: null
+  readiness_endpoint: null
+
+continuity:
+  backup:
+    required: true
+    requirements:
+      - Protect GoreeCloud Backup-owned configuration, protection policy, scope mappings, recovery evidence, and other durable product state independently of the recovery repositories the product administers.
+      - Keep Backup-owned continuity state isolated from reusable repository credentials, encryption material, and restored private contents except where separately governed.
+  restore:
+    required: true
+    requirements:
+      - Validate clean-target restoration of Backup-owned configuration, policy, mappings, and recovery-evidence state before recoverability is claimed.
+      - Preserve access to required historical Kopia recovery points until a separately accepted migration or retirement procedure proves replacement recovery.
+  export:
+    required: true
+    requirements:
+      - Provide documented export or portable representation for Backup-owned configuration, policy, mappings, and bounded recovery evidence where technically applicable.
+      - Exclude reusable credentials, encryption keys, protected backup contents, and unrelated platform-owned state from ordinary exports.
+  portability:
+    required: true
+    requirements:
+      - Preserve repository and recovery portability while the maintained-fork foundation remains Kopia-derived.
+      - Require explicit migration, rollback, compatibility, and representative restore evidence before intentionally breaking an existing recovery format or access path.
+
+external_dependencies:
+  - name: Kopia-derived backup engine and repository foundation
+    purpose: Provides the current recovery-critical repository, snapshot, storage, maintenance, CLI, server, and restore foundations during the controlled maintained-fork transition.
+    required: true
+    version_constraint: null
+  - name: Electron desktop runtime
+    purpose: Provides the current packaged desktop application shell for supported desktop targets during the maintained-fork transition.
+    required: true
+    version_constraint: null
+
+compatibility:
+  platform_contract: "0.4"
+  glaze_ui_required: "1.5.1"
+  requires:
+    - goreecloud-platform-contract==0.4
+    - glaze-ui==1.5.1
+    - kopia-repository-compatibility
+  provides:
+    - goreecloud-backup-recovery-assurance-development
+
+evidence:
+  acceptance_tests: []
+  release: []
+
+conformance:
+  status: nonconformant
+  validated_at: null
+  evidence:
+    - README.md
+    - FEATURES.md
+    - SECURITY.md
+    - docs/goreecloud/GLAZE_UI_CONFORMANCE.md
+    - docs/goreecloud/OBSERVABILITY.md
+    - docs/goreecloud-sync-integration.md
+    - scripts/validate_goreecloud_ui.py
+  blockers:
+    - GoreeCloud Manager runtime integration and acceptance are not established.
+    - Privacy Shield runtime policy and acceptance are not established.
+    - Wardveil Security runtime acceptance is not established and exact-head security workflow blockers remain unresolved.
+    - Everkeep runtime integration and acceptance are not established.
+    - The implemented Glaze UI 1.0 source boundary must migrate to current Stable 1.5.1 and complete representative runtime, accessibility, resilience, interaction, performance, rollback, and visual acceptance.
+    - GoreeCloud Mesh runtime coordination and evidence-routing acceptance are not established.
+    - GoreeCloud Identity runtime integration and accepted recovery-access behavior are not established.
+    - GoreeCloud Policy integration and policy evidence acceptance are not established.
+    - GoreeCloud Observability runtime signal, freshness, completeness, correlation, and operational-evidence acceptance are not established.
+    - GoreeCloud Sync remains separately governed; the current Backup and Sync source integration is incomplete and has no production runtime acceptance.
+    - The exact current Development head has unresolved inherited Build, Lint, Tests, Dependency Review, License Check, and GoreeCloud Security workflow failures; passing product-specific source workflows do not override those release blockers.
+    - Production repository cutover, protected signing and packaging, target-environment validation, representative restoration, release approval, deployment, and Stable qualification remain unaccepted.

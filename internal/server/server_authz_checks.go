@@ -36,7 +36,7 @@ func (s *Server) validateCSRFToken(r *http.Request) bool {
 
 	sessionCookie, err := r.Cookie(kopiaSessionCookie)
 	if err != nil {
-		userLog(ctx).Warnf("missing or invalid session cookie for %q: %v", path, err)
+		userLog(ctx).Warnw("request integrity denied", "event", "request.csrf.denied", "reason", "missing_session_cookie", "path", path)
 
 		return false
 	}
@@ -45,7 +45,8 @@ func (s *Server) validateCSRFToken(r *http.Request) bool {
 
 	token := r.Header.Get(apiclient.CSRFTokenHeader)
 	if token == "" {
-		userLog(ctx).Warnf("missing CSRF token for %v", path)
+		userLog(ctx).Warnw("request integrity denied", "event", "request.csrf.denied", "reason", "missing_token", "path", path)
+
 		return false
 	}
 
@@ -53,7 +54,7 @@ func (s *Server) validateCSRFToken(r *http.Request) bool {
 		return true
 	}
 
-	userLog(ctx).Warnf("got invalid CSRF token for %v: %v, want %v, session %v", path, token, validToken, sessionCookie.Value)
+	userLog(ctx).Warnw("request integrity denied", "event", "request.csrf.denied", "reason", "invalid_token", "path", path)
 
 	return false
 }

@@ -1,0 +1,43 @@
+name: GoreeCloud Product Records
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'README.md'
+      - 'COMPETITIVE-OBJECTIVES.md'
+      - 'FEATURES.md'
+      - 'BENEFITS.md'
+      - 'docs/goreecloud/COMPETITIVE_POSITIONING.md'
+      - 'docs/goreecloud/COMPETITIVE_WORK_ITEMS.md'
+      - 'scripts/validate_goreecloud_product_records.py'
+      - '.github/workflows/goreecloud-product-records.yml'
+  push:
+    branches: [ master, 'agent/**' ]
+    paths:
+      - 'README.md'
+      - 'COMPETITIVE-OBJECTIVES.md'
+      - 'FEATURES.md'
+      - 'BENEFITS.md'
+      - 'docs/goreecloud/COMPETITIVE_POSITIONING.md'
+      - 'docs/goreecloud/COMPETITIVE_WORK_ITEMS.md'
+      - 'scripts/validate_goreecloud_product_records.py'
+      - '.github/workflows/goreecloud-product-records.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate GoreeCloud product records
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate mandatory product records
+        run: python3 scripts/validate_goreecloud_product_records.py

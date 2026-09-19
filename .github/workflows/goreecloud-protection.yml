@@ -1,0 +1,53 @@
+name: GoreeCloud Protection
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'internal/goreecloud/protection/**'
+      - 'internal/goreecloud/syncintegration/**'
+      - 'docs/goreecloud-sync-integration.md'
+      - 'FEATURES.md'
+      - '.github/workflows/goreecloud-protection.yml'
+  push:
+    branches: [ master, 'agent/**' ]
+    paths:
+      - 'internal/goreecloud/protection/**'
+      - 'internal/goreecloud/syncintegration/**'
+      - 'docs/goreecloud-sync-integration.md'
+      - 'FEATURES.md'
+      - '.github/workflows/goreecloud-protection.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate recovery-assurance domain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: true
+
+      - name: Verify GoreeCloud recovery-domain formatting
+        run: |
+          unformatted="$(gofmt -l internal/goreecloud/protection internal/goreecloud/syncintegration)"
+          if [ -n "$unformatted" ]; then
+            printf 'gofmt is required for:\n%s\n' "$unformatted" >&2
+            gofmt -d internal/goreecloud/protection internal/goreecloud/syncintegration >&2
+            exit 1
+          fi
+
+      - name: Test GoreeCloud recovery-domain contracts
+        run: go test ./internal/goreecloud/protection ./internal/goreecloud/syncintegration

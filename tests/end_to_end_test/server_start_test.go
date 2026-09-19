@@ -721,9 +721,9 @@ func verifyUIServedWithCorrectTitle(t *testing.T, cli *apiclient.KopiaAPIClient,
 	b, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	// make sure the UI correctly inserts prefix from KOPIA_UI_TITLE_PREFIX
-	// and it's correctly HTML-escaped.
-	if !bytes.Contains(b, []byte(`<title>Blah: &lt;script&gt;bleh&lt;/script&gt; KopiaUI`)) {
+	// Make sure the UI keeps the user-controlled title prefix HTML-escaped and appends
+	// the intentional GoreeCloud Backup product identity.
+	if !bytes.Contains(b, []byte(`<title>Blah: &lt;script&gt;bleh&lt;/script&gt; GoreeCloud Backup`)) {
 		t.Fatalf("invalid title served by the UI: %v.", string(b))
 	}
 }
