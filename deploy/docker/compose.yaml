@@ -25,6 +25,10 @@ services:
       KOPIA_LOG_DIR: /app/logs
       KOPIA_PERSIST_CREDENTIALS_ON_CONNECT: "false"
       KOPIA_CHECK_FOR_UPDATES: "false"
+      GOREECLOUD_BACKUP_SFTP_HOST: "${GOREECLOUD_BACKUP_SFTP_HOST:?Set the verified SFTP repository host}"
+      GOREECLOUD_BACKUP_SFTP_PORT: "${GOREECLOUD_BACKUP_SFTP_PORT:?Set the verified SFTP repository port}"
+      GOREECLOUD_BACKUP_SFTP_USERNAME: "${GOREECLOUD_BACKUP_SFTP_USERNAME:?Set the verified SFTP repository username}"
+      GOREECLOUD_BACKUP_SFTP_REPOSITORY_PATH: "${GOREECLOUD_BACKUP_SFTP_REPOSITORY_PATH:?Set the verified SFTP repository path}"
       TMPDIR: /app/tmp
       TZ: "${TZ:-UTC}"
 
@@ -56,9 +60,9 @@ services:
         source: "${GOREECLOUD_BACKUP_RESTORE_DIR:?Set the isolated restore-validation directory}"
         target: /restore
 
-    # Source mounts are intentionally absent here. The production migration must
-    # create compose.sources.yaml from fresh live Kopia source-mount readback.
-    # This prevents stale documentation from silently expanding backup scope.
+    # Source mounts are intentionally absent here. The production deployment must
+    # create compose.sources.yaml from current workload recovery requirements and
+    # fresh live VPS path/readability evidence.
 
     logging:
       driver: local
