@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+var errInvalidProtectionPolicy = errors.New("invalid protection policy")
+
 // Policy defines the evidence requirements used to evaluate one protected
 // system or dataset. Baseline GoreeCloud recovery evidence may be made stricter
 // through freshness limits, but it may not be silently removed.
@@ -78,15 +80,15 @@ func (p Policy) Validate() error {
 	seen := make(map[EvidenceKind]struct{}, len(p.Requirements))
 	for _, requirement := range p.Requirements {
 		if !requirement.Kind.valid() {
-			return fmt.Errorf("invalid policy evidence kind %q", requirement.Kind)
+			return fmt.Errorf("%w: invalid policy evidence kind %q", errInvalidProtectionPolicy, requirement.Kind)
 		}
 
 		if requirement.MaxAge < 0 {
-			return fmt.Errorf("max age for evidence %q must not be negative", requirement.Kind)
+			return fmt.Errorf("%w: max age for evidence %q must not be negative", errInvalidProtectionPolicy, requirement.Kind)
 		}
 
 		if _, ok := seen[requirement.Kind]; ok {
-			return fmt.Errorf("duplicate policy evidence requirement %q", requirement.Kind)
+			return fmt.Errorf("%w: duplicate policy evidence requirement %q", errInvalidProtectionPolicy, requirement.Kind)
 		}
 
 		seen[requirement.Kind] = struct{}{}
@@ -101,7 +103,7 @@ func (p Policy) Validate() error {
 
 	if len(missing) > 0 {
 		sortEvidenceKinds(missing)
-		return fmt.Errorf("policy cannot remove baseline evidence requirements: %v", missing)
+		return fmt.Errorf("%w: policy cannot remove baseline evidence requirements: %v", errInvalidProtectionPolicy, missing)
 	}
 
 	return nil
@@ -132,22 +134,22 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 	seen := make(map[EvidenceKind]struct{}, len(observed.Evidence))
 	for _, observation := range observed.Evidence {
 		if !observation.Kind.valid() {
-			return Evaluation{}, fmt.Errorf("invalid observed evidence kind %q", observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid observed evidence kind %q", errInvalidProtectionPolicy, observation.Kind)
 		}
 
 		if _, ok := seen[observation.Kind]; ok {
-			return Evaluation{}, fmt.Errorf("duplicate observed evidence kind %q", observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: duplicate observed evidence kind %q", errInvalidProtectionPolicy, observation.Kind)
 		}
 
 		seen[observation.Kind] = struct{}{}
 
 		status := normalizeEvidenceStatus(observation.Status)
 		if !status.valid() {
-			return Evaluation{}, fmt.Errorf("invalid observed status %q for evidence %q", observation.Status, observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid observed status %q for evidence %q", errInvalidProtectionPolicy, observation.Status, observation.Kind)
 		}
 
 		if !observation.ObservedAt.IsZero() && observation.ObservedAt.After(evaluatedAt) {
-			return Evaluation{}, fmt.Errorf("evidence %q observation time is after evaluation time", observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: evidence %q observation time is after evaluation time", errInvalidProtectionPolicy, observation.Kind)
 		}
 
 		requirement, required := requirements[observation.Kind]
@@ -166,7 +168,7 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 
 	restoreStatus := normalizeEvidenceStatus(observed.RestoreVerification.Status)
 	if !restoreStatus.valid() {
-		return Evaluation{}, fmt.Errorf("invalid restore verification status %q", observed.RestoreVerification.Status)
+		return Evaluation{}, fmt.Errorf("%w: invalid restore verification status %q", errInvalidProtectionPolicy, observed.RestoreVerification.Status)
 	}
 
 	if !observed.RestoreVerification.ObservedAt.IsZero() && observed.RestoreVerification.ObservedAt.After(evaluatedAt) {
