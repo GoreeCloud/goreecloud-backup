@@ -86,6 +86,31 @@ The base `compose.yaml` contains no backup-source bind mounts. Before Release Ca
 
 Do not reconstruct the source list from the deleted Kopia Compose file or from historical documentation.
 
+## Repository bootstrap
+
+The old VPS-local Kopia configuration was retired, so a new GoreeCloud Backup deployment needs an explicit local connection record for the preserved off-VPS SFTP repository.
+
+Populate the verified SFTP endpoint fields in the protected deployment `.env`, stage the repository password, private key, and known_hosts files in their approved host locations, and then run:
+
+`/srv/docker/stacks/goreecloud-backup/goreecloud-backup.sh connect-repository`
+
+The bootstrap operation:
+
+- reads the repository password through the Compose secret;
+- uses the private key and known_hosts through read-only mounted files;
+- does not pass reusable key/password material in command-line arguments;
+- refuses to overwrite an existing `repository.config`;
+- connects to the existing repository rather than creating a new repository;
+- immediately verifies the resulting repository connection with `repository status`.
+
+After connection, use:
+
+`/srv/docker/stacks/goreecloud-backup/goreecloud-backup.sh repository-status`
+
+for an explicit connectivity/status check.
+
+Scheduled execution uses the default `backup` action. Repository connection is never performed implicitly by a scheduled backup attempt.
+
 ## Scheduling
 
 The included systemd unit/timer files model the historically used four-times-daily cadence as a candidate schedule. Because the old Kopia timer has already been retired, the schedule must be accepted against current recovery objectives before the GoreeCloud Backup timer is enabled.
