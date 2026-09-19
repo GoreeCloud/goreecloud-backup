@@ -22,11 +22,11 @@ var (
 	// ErrCheckpointStatusStoreNotInitialized distinguishes a configured store
 	// path that has never been initialized from an initialized store that does
 	// not contain the requested operation.
-	ErrCheckpointStatusStoreNotInitialized = errors.New("Backup checkpoint status store is not initialized")
+	ErrCheckpointStatusStoreNotInitialized = errors.New("backup checkpoint status store is not initialized")
 
 	// ErrCheckpointStatusNotFound indicates that no Backup-owned checkpoint
 	// submission has been recorded for the requested operation ID.
-	ErrCheckpointStatusNotFound = errors.New("Backup checkpoint status not found")
+	ErrCheckpointStatusNotFound = errors.New("backup checkpoint status not found")
 )
 
 type checkpointStatusStoreFile struct {
