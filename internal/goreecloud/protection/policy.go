@@ -70,11 +70,11 @@ func BaselinePolicy() Policy {
 // than the GoreeCloud Backup baseline recovery-evidence contract.
 func (p Policy) Validate() error {
 	if strings.TrimSpace(p.ID) == "" {
-		return errors.New("policy ID must not be empty")
+		return errPolicyIDEmpty
 	}
 
 	if p.RestoreVerificationMaxAge < 0 {
-		return errors.New("restore verification max age must not be negative")
+		return errRestoreVerificationMaxAgeNegative
 	}
 
 	seen := make(map[EvidenceKind]struct{}, len(p.Requirements))
@@ -118,7 +118,7 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 	}
 
 	if evaluatedAt.IsZero() {
-		return Evaluation{}, errors.New("evaluation time must not be zero")
+		return Evaluation{}, errEvaluationTimeZero
 	}
 
 	requirements := make(map[EvidenceKind]EvidenceRequirement, len(policy.Requirements))
@@ -172,7 +172,7 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 	}
 
 	if !observed.RestoreVerification.ObservedAt.IsZero() && observed.RestoreVerification.ObservedAt.After(evaluatedAt) {
-		return Evaluation{}, errors.New("restore verification observation time is after evaluation time")
+		return Evaluation{}, errRestoreVerificationObservedAfterEvaluation
 	}
 
 	if restoreStatus == EvidencePassing && policy.RestoreVerificationMaxAge > 0 {

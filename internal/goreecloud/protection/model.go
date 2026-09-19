@@ -190,7 +190,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 
 	for _, item := range a.Evidence {
 		if strings.TrimSpace(string(item.Kind)) == "" {
-			return Evaluation{}, errors.New("evidence kind must not be empty")
+			return Evaluation{}, errEvidenceKindEmpty
 		}
 
 		if !item.Kind.valid() {
@@ -396,19 +396,19 @@ type RecoveryEvidence struct {
 // Validate checks that a recovery-evidence record is internally coherent.
 func (r RecoveryEvidence) Validate() error {
 	if strings.TrimSpace(r.DatasetID) == "" {
-		return errors.New("dataset ID must not be empty")
+		return errDatasetIDEmpty
 	}
 
 	if strings.TrimSpace(r.RepositoryID) == "" {
-		return errors.New("repository ID must not be empty")
+		return errRepositoryIDEmpty
 	}
 
 	if strings.TrimSpace(r.RecoveryPointID) == "" {
-		return errors.New("recovery point ID must not be empty")
+		return errRecoveryPointIDEmpty
 	}
 
 	if r.ObservedAt.IsZero() {
-		return errors.New("observed time must not be zero")
+		return errObservedTimeZero
 	}
 
 	if !r.BackupStatus.valid() || r.BackupStatus == EvidenceNotApplicable {
@@ -433,7 +433,7 @@ func (r RecoveryEvidence) Validate() error {
 	}
 
 	if t.CompletedAt.IsZero() {
-		return errors.New("restore test completion time must not be zero")
+		return errRestoreTestCompletionTimeZero
 	}
 
 	if !t.FailureCategory.valid() {
@@ -445,7 +445,7 @@ func (r RecoveryEvidence) Validate() error {
 	}
 
 	if t.Status == EvidenceFailing && t.FailureCategory == FailureNone {
-		return errors.New("failing restore test must have a failure category")
+		return errRestoreFailureCategoryMissing
 	}
 
 	seenChecks := map[ValidationCheck]struct{}{}
