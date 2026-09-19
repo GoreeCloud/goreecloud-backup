@@ -1,0 +1,13 @@
+# EXAMPLE ONLY.
+#
+# The real /srv/docker/stacks/goreecloud-backup/compose.sources.yaml must be
+# generated from fresh live readback of the authoritative Kopia Compose stack.
+# Do not copy historical source lists from documentation.
+
+services:
+  backup:
+    volumes:
+      - type: bind
+        source: /REPLACE_WITH_VERIFIED_SOURCE_PATH
+        target: /source/REPLACE_WITH_VERIFIED_SOURCE_NAME
+        read_only: true
