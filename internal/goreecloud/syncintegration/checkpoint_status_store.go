@@ -12,6 +12,8 @@ import (
 	"sync"
 )
 
+var errInvalidCheckpointStatusStore = errors.New("invalid checkpoint status store")
+
 const (
 	checkpointStatusStoreVersion = 1
 	maxCheckpointStatusRecords   = 4096
@@ -118,11 +120,11 @@ func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submis
 			return nil
 		}
 
-		return fmt.Errorf("checkpoint operation %q already has a different submission", submission.OperationID)
+		return fmt.Errorf("%w: checkpoint operation %q already has a different submission", errInvalidCheckpointStatusStore, submission.OperationID)
 	}
 
 	if len(records) >= maxCheckpointStatusRecords {
-		return fmt.Errorf("checkpoint status record count exceeds %d", maxCheckpointStatusRecords)
+		return fmt.Errorf("%w: checkpoint status record count exceeds %d", errInvalidCheckpointStatusStore, maxCheckpointStatusRecords)
 	}
 
 	records = append(records, checkpointStatusRecord{
@@ -191,7 +193,7 @@ func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status Che
 		}
 
 		if len(record.History) >= maxCheckpointStatusHistory {
-			return fmt.Errorf("checkpoint status history exceeds %d observations", maxCheckpointStatusHistory)
+			return fmt.Errorf("%w: checkpoint status history exceeds %d observations", errInvalidCheckpointStatusStore, maxCheckpointStatusHistory)
 		}
 
 		record.History = append(record.History, status)
@@ -297,7 +299,7 @@ func validateCheckpointStatusTransition(previous, next CheckpointStatus) error {
 		// operation ID so evidence from distinct executions cannot be merged.
 	}
 
-	return fmt.Errorf("checkpoint lifecycle transition %q -> %q is not permitted", previous.State, next.State)
+	return fmt.Errorf("%w: checkpoint lifecycle transition %q -> %q is not permitted", errInvalidCheckpointStatusStore, previous.State, next.State)
 }
 
 func sameCheckpointSubmission(a, b CheckpointSubmission) bool {
@@ -360,7 +362,7 @@ func (s *FileCheckpointStatusStore) loadRecords() ([]checkpointStatusRecord, err
 	}
 
 	if stored.Version != checkpointStatusStoreVersion {
-		return nil, fmt.Errorf("unsupported checkpoint status store version %d", stored.Version)
+		return nil, fmt.Errorf("%w: unsupported checkpoint status store version %d", errInvalidCheckpointStatusStore, stored.Version)
 	}
 
 	if err := validateCheckpointStatusRecords(stored.Records); err != nil {
@@ -390,7 +392,7 @@ func (s *FileCheckpointStatusStore) writeRecords(records []checkpointStatusRecor
 
 func validateCheckpointStatusRecords(records []checkpointStatusRecord) error {
 	if len(records) > maxCheckpointStatusRecords {
-		return fmt.Errorf("checkpoint status record count exceeds %d", maxCheckpointStatusRecords)
+		return fmt.Errorf("%w: checkpoint status record count exceeds %d", errInvalidCheckpointStatusStore, maxCheckpointStatusRecords)
 	}
 
 	seenOperations := make(map[string]struct{}, len(records))
@@ -403,25 +405,25 @@ func validateCheckpointStatusRecords(records []checkpointStatusRecord) error {
 		}
 
 		if _, exists := seenOperations[record.Submission.OperationID]; exists {
-			return fmt.Errorf("duplicate checkpoint operation ID %q", record.Submission.OperationID)
+			return fmt.Errorf("%w: duplicate checkpoint operation ID %q", errInvalidCheckpointStatusStore, record.Submission.OperationID)
 		}
 
 		seenOperations[record.Submission.OperationID] = struct{}{}
 		if _, exists := seenRequests[record.Submission.RequestID]; exists {
-			return fmt.Errorf("duplicate checkpoint request ID %q", record.Submission.RequestID)
+			return fmt.Errorf("%w: duplicate checkpoint request ID %q", errInvalidCheckpointStatusStore, record.Submission.RequestID)
 		}
 
 		seenRequests[record.Submission.RequestID] = struct{}{}
 		if len(record.History) == 0 {
-			return fmt.Errorf("record %d checkpoint history must not be empty", i)
+			return fmt.Errorf("%w: record %d checkpoint history must not be empty", errInvalidCheckpointStatusStore, i)
 		}
 
 		if len(record.History) > maxCheckpointStatusHistory {
-			return fmt.Errorf("record %d checkpoint status history exceeds %d observations", i, maxCheckpointStatusHistory)
+			return fmt.Errorf("%w: record %d checkpoint status history exceeds %d observations", errInvalidCheckpointStatusStore, i, maxCheckpointStatusHistory)
 		}
 
 		if !sameCheckpointStatus(record.History[0], accepted) {
-			return fmt.Errorf("record %d first checkpoint status must be the accepted submission", i)
+			return fmt.Errorf("%w: record %d first checkpoint status must be the accepted submission", errInvalidCheckpointStatusStore, i)
 		}
 
 		for j := range record.History {
@@ -436,7 +438,7 @@ func validateCheckpointStatusRecords(records []checkpointStatusRecord) error {
 
 			previous := record.History[j-1]
 			if !status.ObservedAt.After(previous.ObservedAt) {
-				return fmt.Errorf("record %d status %d observation time must advance", i, j)
+				return fmt.Errorf("%w: record %d status %d observation time must advance", errInvalidCheckpointStatusStore, i, j)
 			}
 
 			if err := validateCheckpointStatusTransition(previous, status); err != nil {
