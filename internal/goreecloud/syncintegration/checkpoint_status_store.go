@@ -85,7 +85,7 @@ func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submis
 	}
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	submission.AcceptedAt = submission.AcceptedAt.UTC()
@@ -99,7 +99,7 @@ func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submis
 	defer s.mu.Unlock()
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	records, err := s.loadRecords()
@@ -149,7 +149,7 @@ func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status Che
 	}
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	status.ObservedAt = status.ObservedAt.UTC()
@@ -161,7 +161,7 @@ func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status Che
 	defer s.mu.Unlock()
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	records, err := s.loadRecords()
@@ -218,7 +218,7 @@ func (s *FileCheckpointStatusStore) CheckpointStatus(ctx context.Context, operat
 	}
 
 	if err := ctx.Err(); err != nil {
-		return CheckpointStatus{}, err
+		return CheckpointStatus{}, fmt.Errorf("context state: %w", err)
 	}
 
 	if err := validateOpaqueIdentifier("checkpoint operation ID", operationID); err != nil {
