@@ -1,0 +1,9 @@
+[Unit]
+Description=GoreeCloud Backup scheduled snapshot
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/srv/docker/stacks/goreecloud-backup/goreecloud-backup.sh
