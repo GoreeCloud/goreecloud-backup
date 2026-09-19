@@ -58,7 +58,7 @@ func NewFileDatasetScopeStore(path string) (*FileDatasetScopeStore, error) {
 		return nil, errors.New("dataset-scope mapping store path must identify a file")
 	}
 
-	return &FileDatasetScopeStore{path: clean, mu: sync.Mutex{}}, nil
+	return &FileDatasetScopeStore{path: clean, mu: sync.RWMutex{}}, nil
 }
 
 // ReplaceMappings atomically replaces the complete durable mapping set after
