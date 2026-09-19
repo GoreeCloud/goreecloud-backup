@@ -12,6 +12,8 @@ import (
 	"sync"
 )
 
+var errInvalidCheckpointStatusStore = errors.New("invalid checkpoint status store")
+
 const (
 	checkpointStatusStoreVersion = 1
 	maxCheckpointStatusRecords   = 4096
@@ -22,11 +24,11 @@ var (
 	// ErrCheckpointStatusStoreNotInitialized distinguishes a configured store
 	// path that has never been initialized from an initialized store that does
 	// not contain the requested operation.
-	ErrCheckpointStatusStoreNotInitialized = errors.New("Backup checkpoint status store is not initialized")
+	ErrCheckpointStatusStoreNotInitialized = errors.New("backup checkpoint status store is not initialized")
 
 	// ErrCheckpointStatusNotFound indicates that no Backup-owned checkpoint
 	// submission has been recorded for the requested operation ID.
-	ErrCheckpointStatusNotFound = errors.New("Backup checkpoint status not found")
+	ErrCheckpointStatusNotFound = errors.New("backup checkpoint status not found")
 )
 
 type checkpointStatusStoreFile struct {
@@ -58,13 +60,15 @@ type FileCheckpointStatusStore struct {
 // path. It does not create the file or its parent directory.
 func NewFileCheckpointStatusStore(path string) (*FileCheckpointStatusStore, error) {
 	if path == "" {
-		return nil, fmt.Errorf("checkpoint status store path must not be empty")
+		return nil, errCheckpointStorePathEmpty
 	}
+
 	clean := filepath.Clean(path)
 	if clean == "." || filepath.Base(clean) == "." || filepath.Base(clean) == string(filepath.Separator) {
-		return nil, fmt.Errorf("checkpoint status store path must identify a file")
+		return nil, errCheckpointStorePathInvalid
 	}
-	return &FileCheckpointStatusStore{path: clean}, nil
+
+	return &FileCheckpointStatusStore{path: clean, mu: sync.RWMutex{}}, nil
 }
 
 // RecordSubmission initializes one operation with Backup's accepted receipt.
@@ -73,16 +77,19 @@ func NewFileCheckpointStatusStore(path string) (*FileCheckpointStatusStore, erro
 // are part of the immutable correlation boundary.
 func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submission CheckpointSubmission) error {
 	if s == nil || s.path == "" {
-		return fmt.Errorf("checkpoint status store is not initialized")
+		return errCheckpointStoreNotInitialized
 	}
+
 	if ctx == nil {
-		return fmt.Errorf("context is required")
+		return errContextRequired
 	}
+
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	submission.AcceptedAt = submission.AcceptedAt.UTC()
+
 	accepted, err := acceptedStatusForSubmission(submission)
 	if err != nil {
 		return err
@@ -92,12 +99,14 @@ func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submis
 	defer s.mu.Unlock()
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
+
 	records, err := s.loadRecords()
 	if err != nil && !errors.Is(err, ErrCheckpointStatusStoreNotInitialized) {
 		return err
 	}
+
 	if errors.Is(err, ErrCheckpointStatusStoreNotInitialized) {
 		records = nil
 	}
@@ -106,19 +115,23 @@ func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submis
 		if record.Submission.OperationID != submission.OperationID {
 			continue
 		}
+
 		if sameCheckpointSubmission(record.Submission, submission) {
 			return nil
 		}
-		return fmt.Errorf("checkpoint operation %q already has a different submission", submission.OperationID)
+
+		return fmt.Errorf("%w: checkpoint operation %q already has a different submission", errInvalidCheckpointStatusStore, submission.OperationID)
 	}
+
 	if len(records) >= maxCheckpointStatusRecords {
-		return fmt.Errorf("checkpoint status record count exceeds %d", maxCheckpointStatusRecords)
+		return fmt.Errorf("%w: checkpoint status record count exceeds %d", errInvalidCheckpointStatusStore, maxCheckpointStatusRecords)
 	}
 
 	records = append(records, checkpointStatusRecord{
 		Submission: submission,
 		History:    []CheckpointStatus{accepted},
 	})
+
 	return s.writeRecords(records)
 }
 
@@ -128,14 +141,17 @@ func (s *FileCheckpointStatusStore) RecordSubmission(ctx context.Context, submis
 // original submission, and follow the allowed lifecycle progression.
 func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status CheckpointStatus) error {
 	if s == nil || s.path == "" {
-		return fmt.Errorf("checkpoint status store is not initialized")
+		return errCheckpointStoreNotInitialized
 	}
+
 	if ctx == nil {
-		return fmt.Errorf("context is required")
+		return errContextRequired
 	}
+
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
+
 	status.ObservedAt = status.ObservedAt.UTC()
 	if err := status.Validate(); err != nil {
 		return err
@@ -145,36 +161,46 @@ func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status Che
 	defer s.mu.Unlock()
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
+
 	records, err := s.loadRecords()
 	if err != nil {
 		return err
 	}
+
 	for i := range records {
 		record := &records[i]
 		if record.Submission.OperationID != status.OperationID {
 			continue
 		}
+
 		if err := status.ValidateForSubmission(record.Submission); err != nil {
 			return fmt.Errorf("checkpoint status does not match submission: %w", err)
 		}
+
 		last := record.History[len(record.History)-1]
 		if sameCheckpointStatus(last, status) {
 			return nil
 		}
+
 		if !status.ObservedAt.After(last.ObservedAt) {
-			return fmt.Errorf("checkpoint status observation time must advance")
+			return errCheckpointStatusMustAdvance
 		}
+
 		if err := validateCheckpointStatusTransition(last, status); err != nil {
 			return err
 		}
+
 		if len(record.History) >= maxCheckpointStatusHistory {
-			return fmt.Errorf("checkpoint status history exceeds %d observations", maxCheckpointStatusHistory)
+			return fmt.Errorf("%w: checkpoint status history exceeds %d observations", errInvalidCheckpointStatusStore, maxCheckpointStatusHistory)
 		}
+
 		record.History = append(record.History, status)
+
 		return s.writeRecords(records)
 	}
+
 	return ErrCheckpointStatusNotFound
 }
 
@@ -184,14 +210,17 @@ func (s *FileCheckpointStatusStore) RecordStatus(ctx context.Context, status Che
 // receives no mutation authority through this provider.
 func (s *FileCheckpointStatusStore) CheckpointStatus(ctx context.Context, operationID string) (CheckpointStatus, error) {
 	if s == nil || s.path == "" {
-		return CheckpointStatus{}, fmt.Errorf("checkpoint status store is not initialized")
+		return CheckpointStatus{}, errCheckpointStoreNotInitialized
 	}
+
 	if ctx == nil {
-		return CheckpointStatus{}, fmt.Errorf("context is required")
+		return CheckpointStatus{}, errContextRequired
 	}
+
 	if err := ctx.Err(); err != nil {
-		return CheckpointStatus{}, err
+		return CheckpointStatus{}, fmt.Errorf("context state: %w", err)
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint operation ID", operationID); err != nil {
 		return CheckpointStatus{}, err
 	}
@@ -203,27 +232,35 @@ func (s *FileCheckpointStatusStore) CheckpointStatus(ctx context.Context, operat
 	if err != nil {
 		return CheckpointStatus{}, err
 	}
+
 	for _, record := range records {
 		if record.Submission.OperationID == operationID {
 			return record.History[len(record.History)-1], nil
 		}
 	}
+
 	return CheckpointStatus{}, ErrCheckpointStatusNotFound
 }
 
 func acceptedStatusForSubmission(submission CheckpointSubmission) (CheckpointStatus, error) {
 	accepted := CheckpointStatus{
-		ContractVersion: ContractVersion,
-		RequestID:       submission.RequestID,
-		OperationID:     submission.OperationID,
-		DatasetID:       submission.DatasetID,
-		BackupScopeID:   submission.BackupScopeID,
-		ObservedAt:      submission.AcceptedAt.UTC(),
-		State:           CheckpointStateAccepted,
+		ContractVersion:     ContractVersion,
+		RequestID:           submission.RequestID,
+		OperationID:         submission.OperationID,
+		DatasetID:           submission.DatasetID,
+		BackupScopeID:       submission.BackupScopeID,
+		ObservedAt:          submission.AcceptedAt.UTC(),
+		State:               CheckpointStateAccepted,
+		RecoveryPointID:     "",
+		RecoveryPointUsable: false,
+		IntegrityVerified:   false,
+		RestoreVerified:     false,
+		FailureCategory:     "",
 	}
 	if err := accepted.ValidateForSubmission(submission); err != nil {
 		return CheckpointStatus{}, fmt.Errorf("invalid checkpoint submission: %w", err)
 	}
+
 	return accepted, nil
 }
 
@@ -245,24 +282,29 @@ func validateCheckpointStatusTransition(previous, next CheckpointStatus) error {
 			return nil
 		case CheckpointStateCompleted:
 			if previous.RecoveryPointID != next.RecoveryPointID {
-				return fmt.Errorf("completed checkpoint recovery point ID must not change")
+				return errCompletedRecoveryPointIDChanged
 			}
+
 			if previous.RecoveryPointUsable && !next.RecoveryPointUsable {
-				return fmt.Errorf("completed checkpoint usable evidence must not regress")
+				return errCompletedUsableEvidenceRegressed
 			}
+
 			if previous.IntegrityVerified && !next.IntegrityVerified {
-				return fmt.Errorf("completed checkpoint integrity evidence must not regress")
+				return errCompletedIntegrityEvidenceRegressed
 			}
+
 			if previous.RestoreVerified && !next.RestoreVerified {
-				return fmt.Errorf("completed checkpoint restore evidence must not regress")
+				return errCompletedRestoreEvidenceRegressed
 			}
+
 			return nil
 		}
 	case CheckpointStateFailed:
 		// A failed operation is terminal. A retry must receive a new Backup
 		// operation ID so evidence from distinct executions cannot be merged.
 	}
-	return fmt.Errorf("checkpoint lifecycle transition %q -> %q is not permitted", previous.State, next.State)
+
+	return fmt.Errorf("%w: checkpoint lifecycle transition %q -> %q is not permitted", errInvalidCheckpointStatusStore, previous.State, next.State)
 }
 
 func sameCheckpointSubmission(a, b CheckpointSubmission) bool {
@@ -294,34 +336,44 @@ func (s *FileCheckpointStatusStore) loadRecords() ([]checkpointStatusRecord, err
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrCheckpointStatusStoreNotInitialized
 		}
+
 		return nil, fmt.Errorf("stat checkpoint status store: %w", err)
 	}
+
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("checkpoint status store must be a regular file")
+		return nil, errCheckpointStoreNotRegularFile
 	}
+
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return nil, fmt.Errorf("checkpoint status store permissions must not grant group or other access")
+		return nil, errCheckpointStorePermissions
 	}
 
 	payload, err := os.ReadFile(s.path)
 	if err != nil {
 		return nil, fmt.Errorf("read checkpoint status store: %w", err)
 	}
+
 	var stored checkpointStatusStoreFile
+
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
+
 	if err := decoder.Decode(&stored); err != nil {
 		return nil, fmt.Errorf("decode checkpoint status store: %w", err)
 	}
+
 	if err := requireJSONEOF(decoder); err != nil {
 		return nil, fmt.Errorf("decode checkpoint status store: %w", err)
 	}
+
 	if stored.Version != checkpointStatusStoreVersion {
-		return nil, fmt.Errorf("unsupported checkpoint status store version %d", stored.Version)
+		return nil, fmt.Errorf("%w: unsupported checkpoint status store version %d", errInvalidCheckpointStatusStore, stored.Version)
 	}
+
 	if err := validateCheckpointStatusRecords(stored.Records); err != nil {
 		return nil, fmt.Errorf("invalid checkpoint status store: %w", err)
 	}
+
 	return cloneCheckpointStatusRecords(stored.Records), nil
 }
 
@@ -329,6 +381,7 @@ func (s *FileCheckpointStatusStore) writeRecords(records []checkpointStatusRecor
 	if err := validateCheckpointStatusRecords(records); err != nil {
 		return err
 	}
+
 	payload, err := json.MarshalIndent(checkpointStatusStoreFile{
 		Version: checkpointStatusStoreVersion,
 		Records: records,
@@ -336,55 +389,69 @@ func (s *FileCheckpointStatusStore) writeRecords(records []checkpointStatusRecor
 	if err != nil {
 		return fmt.Errorf("encode checkpoint status store: %w", err)
 	}
+
 	payload = append(payload, '\n')
+
 	return writePrivateAtomicFile(s.path, payload)
 }
 
 func validateCheckpointStatusRecords(records []checkpointStatusRecord) error {
 	if len(records) > maxCheckpointStatusRecords {
-		return fmt.Errorf("checkpoint status record count exceeds %d", maxCheckpointStatusRecords)
+		return fmt.Errorf("%w: checkpoint status record count exceeds %d", errInvalidCheckpointStatusStore, maxCheckpointStatusRecords)
 	}
+
 	seenOperations := make(map[string]struct{}, len(records))
+
 	seenRequests := make(map[string]struct{}, len(records))
 	for i, record := range records {
 		accepted, err := acceptedStatusForSubmission(record.Submission)
 		if err != nil {
 			return fmt.Errorf("record %d submission: %w", i, err)
 		}
+
 		if _, exists := seenOperations[record.Submission.OperationID]; exists {
-			return fmt.Errorf("duplicate checkpoint operation ID %q", record.Submission.OperationID)
+			return fmt.Errorf("%w: duplicate checkpoint operation ID %q", errInvalidCheckpointStatusStore, record.Submission.OperationID)
 		}
+
 		seenOperations[record.Submission.OperationID] = struct{}{}
 		if _, exists := seenRequests[record.Submission.RequestID]; exists {
-			return fmt.Errorf("duplicate checkpoint request ID %q", record.Submission.RequestID)
+			return fmt.Errorf("%w: duplicate checkpoint request ID %q", errInvalidCheckpointStatusStore, record.Submission.RequestID)
 		}
+
 		seenRequests[record.Submission.RequestID] = struct{}{}
 		if len(record.History) == 0 {
-			return fmt.Errorf("record %d checkpoint history must not be empty", i)
+			return fmt.Errorf("%w: record %d checkpoint history must not be empty", errInvalidCheckpointStatusStore, i)
 		}
+
 		if len(record.History) > maxCheckpointStatusHistory {
-			return fmt.Errorf("record %d checkpoint status history exceeds %d observations", i, maxCheckpointStatusHistory)
+			return fmt.Errorf("%w: record %d checkpoint status history exceeds %d observations", errInvalidCheckpointStatusStore, i, maxCheckpointStatusHistory)
 		}
+
 		if !sameCheckpointStatus(record.History[0], accepted) {
-			return fmt.Errorf("record %d first checkpoint status must be the accepted submission", i)
+			return fmt.Errorf("%w: record %d first checkpoint status must be the accepted submission", errInvalidCheckpointStatusStore, i)
 		}
+
 		for j := range record.History {
 			status := record.History[j]
 			if err := status.ValidateForSubmission(record.Submission); err != nil {
 				return fmt.Errorf("record %d status %d: %w", i, j, err)
 			}
+
 			if j == 0 {
 				continue
 			}
+
 			previous := record.History[j-1]
 			if !status.ObservedAt.After(previous.ObservedAt) {
-				return fmt.Errorf("record %d status %d observation time must advance", i, j)
+				return fmt.Errorf("%w: record %d status %d observation time must advance", errInvalidCheckpointStatusStore, i, j)
 			}
+
 			if err := validateCheckpointStatusTransition(previous, status); err != nil {
 				return fmt.Errorf("record %d status %d: %w", i, j, err)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -396,6 +463,7 @@ func cloneCheckpointStatusRecords(records []checkpointStatusRecord) []checkpoint
 			History:    append([]CheckpointStatus(nil), record.History...),
 		}
 	}
+
 	return cloned
 }
 

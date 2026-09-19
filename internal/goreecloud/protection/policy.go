@@ -1,11 +1,14 @@
 package protection
 
 import (
+	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
+
+var errInvalidProtectionPolicy = errors.New("invalid protection policy")
 
 // Policy defines the evidence requirements used to evaluate one protected
 // system or dataset. Baseline GoreeCloud recovery evidence may be made stricter
@@ -54,12 +57,13 @@ type ObservedAssessment struct {
 func BaselinePolicy() Policy {
 	requirements := make([]EvidenceRequirement, 0, len(baselineRequiredEvidence))
 	for _, kind := range baselineRequiredEvidence {
-		requirements = append(requirements, EvidenceRequirement{Kind: kind})
+		requirements = append(requirements, EvidenceRequirement{Kind: kind, MaxAge: 0})
 	}
 
 	return Policy{
-		ID:           "baseline",
-		Requirements: requirements,
+		ID:                        "baseline",
+		Requirements:              requirements,
+		RestoreVerificationMaxAge: 0,
 	}
 }
 
@@ -67,23 +71,27 @@ func BaselinePolicy() Policy {
 // than the GoreeCloud Backup baseline recovery-evidence contract.
 func (p Policy) Validate() error {
 	if strings.TrimSpace(p.ID) == "" {
-		return fmt.Errorf("policy ID must not be empty")
+		return errPolicyIDEmpty
 	}
+
 	if p.RestoreVerificationMaxAge < 0 {
-		return fmt.Errorf("restore verification max age must not be negative")
+		return errRestoreVerificationMaxAgeNegative
 	}
 
 	seen := make(map[EvidenceKind]struct{}, len(p.Requirements))
 	for _, requirement := range p.Requirements {
 		if !requirement.Kind.valid() {
-			return fmt.Errorf("invalid policy evidence kind %q", requirement.Kind)
+			return fmt.Errorf("%w: invalid policy evidence kind %q", errInvalidProtectionPolicy, requirement.Kind)
 		}
+
 		if requirement.MaxAge < 0 {
-			return fmt.Errorf("max age for evidence %q must not be negative", requirement.Kind)
+			return fmt.Errorf("%w: max age for evidence %q must not be negative", errInvalidProtectionPolicy, requirement.Kind)
 		}
+
 		if _, ok := seen[requirement.Kind]; ok {
-			return fmt.Errorf("duplicate policy evidence requirement %q", requirement.Kind)
+			return fmt.Errorf("%w: duplicate policy evidence requirement %q", errInvalidProtectionPolicy, requirement.Kind)
 		}
+
 		seen[requirement.Kind] = struct{}{}
 	}
 
@@ -93,9 +101,10 @@ func (p Policy) Validate() error {
 			missing = append(missing, kind)
 		}
 	}
+
 	if len(missing) > 0 {
 		sortEvidenceKinds(missing)
-		return fmt.Errorf("policy cannot remove baseline evidence requirements: %v", missing)
+		return fmt.Errorf("%w: policy cannot remove baseline evidence requirements: %v", errInvalidProtectionPolicy, missing)
 	}
 
 	return nil
@@ -108,8 +117,9 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 	if err := policy.Validate(); err != nil {
 		return Evaluation{}, err
 	}
+
 	if evaluatedAt.IsZero() {
-		return Evaluation{}, fmt.Errorf("evaluation time must not be zero")
+		return Evaluation{}, errEvaluationTimeZero
 	}
 
 	requirements := make(map[EvidenceKind]EvidenceRequirement, len(policy.Requirements))
@@ -118,26 +128,31 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 	}
 
 	assessment := Assessment{
-		Configured:       observed.Configured,
-		BackupInProgress: observed.BackupInProgress,
+		Configured:          observed.Configured,
+		BackupInProgress:    observed.BackupInProgress,
+		Evidence:            nil,
+		RestoreVerification: "",
 	}
 
 	seen := make(map[EvidenceKind]struct{}, len(observed.Evidence))
 	for _, observation := range observed.Evidence {
 		if !observation.Kind.valid() {
-			return Evaluation{}, fmt.Errorf("invalid observed evidence kind %q", observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid observed evidence kind %q", errInvalidProtectionPolicy, observation.Kind)
 		}
+
 		if _, ok := seen[observation.Kind]; ok {
-			return Evaluation{}, fmt.Errorf("duplicate observed evidence kind %q", observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: duplicate observed evidence kind %q", errInvalidProtectionPolicy, observation.Kind)
 		}
+
 		seen[observation.Kind] = struct{}{}
 
 		status := normalizeEvidenceStatus(observation.Status)
 		if !status.valid() {
-			return Evaluation{}, fmt.Errorf("invalid observed status %q for evidence %q", observation.Status, observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid observed status %q for evidence %q", errInvalidProtectionPolicy, observation.Status, observation.Kind)
 		}
+
 		if !observation.ObservedAt.IsZero() && observation.ObservedAt.After(evaluatedAt) {
-			return Evaluation{}, fmt.Errorf("evidence %q observation time is after evaluation time", observation.Kind)
+			return Evaluation{}, fmt.Errorf("%w: evidence %q observation time is after evaluation time", errInvalidProtectionPolicy, observation.Kind)
 		}
 
 		requirement, required := requirements[observation.Kind]
@@ -156,16 +171,19 @@ func EvaluateObserved(policy Policy, observed ObservedAssessment, evaluatedAt ti
 
 	restoreStatus := normalizeEvidenceStatus(observed.RestoreVerification.Status)
 	if !restoreStatus.valid() {
-		return Evaluation{}, fmt.Errorf("invalid restore verification status %q", observed.RestoreVerification.Status)
+		return Evaluation{}, fmt.Errorf("%w: invalid restore verification status %q", errInvalidProtectionPolicy, observed.RestoreVerification.Status)
 	}
+
 	if !observed.RestoreVerification.ObservedAt.IsZero() && observed.RestoreVerification.ObservedAt.After(evaluatedAt) {
-		return Evaluation{}, fmt.Errorf("restore verification observation time is after evaluation time")
+		return Evaluation{}, errRestoreVerificationObservedAfterEvaluation
 	}
+
 	if restoreStatus == EvidencePassing && policy.RestoreVerificationMaxAge > 0 {
 		if observed.RestoreVerification.ObservedAt.IsZero() || evaluatedAt.Sub(observed.RestoreVerification.ObservedAt) > policy.RestoreVerificationMaxAge {
 			restoreStatus = EvidenceStale
 		}
 	}
+
 	assessment.RestoreVerification = restoreStatus
 
 	return Evaluate(assessment)
@@ -178,6 +196,8 @@ func (p Policy) RequirementKinds() []EvidenceKind {
 	for _, requirement := range p.Requirements {
 		kinds = append(kinds, requirement.Kind)
 	}
-	sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
+
+	slices.Sort(kinds)
+
 	return kinds
 }

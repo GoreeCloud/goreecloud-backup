@@ -29,10 +29,13 @@ func (s CheckpointStatus) ReadyForSubmissionWithin(submission CheckpointSubmissi
 	if maxAge <= 0 || now.IsZero() || !s.ReadyForSubmission(submission) {
 		return false
 	}
+
 	observedAt := s.ObservedAt.UTC()
+
 	evaluatedAt := now.UTC()
 	if observedAt.After(evaluatedAt) {
 		return false
 	}
+
 	return evaluatedAt.Sub(observedAt) <= maxAge
 }

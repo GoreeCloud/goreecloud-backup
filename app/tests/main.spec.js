@@ -133,96 +133,6 @@ function waitForBackupEngineToStartup() {
   });
 }
 
-/**
- * Waits until the packaged Electron child process has actually exited.
- *
- * Playwright may finish its close request before Windows releases every handle
- * beneath the temporary application profile. Waiting for the child-process
- * exit/close signal keeps test cleanup from racing those handle releases.
- *
- * @param {import("child_process").ChildProcess} childProcess
- * @param {number} timeoutMs
- * @returns {Promise<void>}
- */
-function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
-  if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve, reject) => {
-    let timeoutID;
-
-    const cleanup = () => {
-      clearTimeout(timeoutID);
-      childProcess.off("exit", onExit);
-      childProcess.off("close", onExit);
-    };
-
-    const onExit = () => {
-      cleanup();
-      resolve();
-    };
-
-    timeoutID = setTimeout(() => {
-      cleanup();
-      reject(new Error("timed out waiting for packaged Electron process exit"));
-    }, timeoutMs);
-
-    childProcess.once("exit", onExit);
-    childProcess.once("close", onExit);
-  });
-}
-
-/**
- * Closes the isolated packaged Electron test process without allowing teardown
- * to consume the test timeout. The embedded test servers receive an immediate
- * stop request, then the test-only Electron process is terminated and its
- * OS-level exit is observed before the temporary profile is removed.
- *
- * @param {Electron.App} app
- * @returns {Promise<void>}
- */
-async function closePackagedApp(app) {
-  const packagedProcess = app.process();
-  const processExited = waitForElectronProcessExit(packagedProcess, 10000);
-
-  let stopRequestTimeoutID;
-
-  try {
-    await Promise.race([
-      app.evaluate(async ({ app: electronApplication }) => {
-        electronApplication.testHooks.stopAllServersNow();
-      }),
-      new Promise((_, reject) => {
-        stopRequestTimeoutID = setTimeout(() => {
-          reject(new Error("timed out requesting embedded server shutdown"));
-        }, 2000);
-      }),
-    ]);
-  } catch (error) {
-    // Teardown must still terminate the isolated test process even if the
-    // renderer/main-process connection is already degraded.
-    console.warn("unable to request embedded server shutdown:", error.message);
-  } finally {
-    clearTimeout(stopRequestTimeoutID);
-  }
-
-  if (
-    packagedProcess.exitCode === null &&
-    packagedProcess.signalCode === null
-  ) {
-    packagedProcess.kill("SIGKILL");
-  }
-
-  await processExited;
-
-  // Windows can release application-profile handles shortly after process
-  // exit. Give the OS a short bounded interval before recursive cleanup.
-  if (process.platform === "win32") {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-}
-
 test.beforeAll(() => {
   const appDir = getGoreeCloudBackupDir();
   expect(appDir).not.toBeNull();
@@ -244,14 +154,16 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   if (electronApp) {
-    await closePackagedApp(electronApp);
+    await electronApp.evaluate(async ({ app }) => {
+      await app.testHooks.stopAllServers();
+    });
+    await electronApp.close();
   }
-
   fs.rmSync(tmpAppDataDir, {
     recursive: true,
     force: true,
-    maxRetries: 40,
-    retryDelay: 250,
+    maxRetries: 10,
+    retryDelay: 100,
   });
 });
 

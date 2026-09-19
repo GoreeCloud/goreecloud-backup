@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+var errInvalidDatasetScopeMapping = errors.New("invalid dataset-scope mapping")
+
 // ErrDatasetScopeMappingNotFound indicates that Backup has no approved mapping
 // for the requested Sync dataset. Callers must not infer a Backup scope from a
 // path, name, or other Sync-owned metadata when this occurs.
@@ -36,20 +38,25 @@ type DatasetScopeMapping struct {
 // active and does not authorize access to either product.
 func (m DatasetScopeMapping) Validate() error {
 	if m.ContractVersion != ContractVersion {
-		return fmt.Errorf("unsupported contract version %q", m.ContractVersion)
+		return fmt.Errorf("%w: unsupported contract version %q", errInvalidDatasetScopeMapping, m.ContractVersion)
 	}
+
 	if err := validateOpaqueIdentifier("dataset ID", m.DatasetID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("Backup scope ID", m.BackupScopeID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("mapping revision", m.MappingRevision); err != nil {
 		return err
 	}
+
 	if m.UpdatedAt.IsZero() {
-		return fmt.Errorf("mapping update time must not be zero")
+		return errMappingUpdateTimeZero
 	}
+
 	return nil
 }
 
@@ -57,15 +64,19 @@ func (m DatasetScopeMapping) validateForDataset(datasetID string) error {
 	if err := validateOpaqueIdentifier("dataset ID", datasetID); err != nil {
 		return err
 	}
+
 	if err := m.Validate(); err != nil {
 		return err
 	}
+
 	if m.DatasetID != datasetID {
-		return fmt.Errorf("resolved mapping dataset ID does not match checkpoint request")
+		return errResolvedMappingDatasetMismatch
 	}
+
 	if !m.Active {
 		return ErrDatasetScopeMappingInactive
 	}
+
 	return nil
 }
 
@@ -77,5 +88,5 @@ func (m DatasetScopeMapping) validateForDataset(datasetID string) error {
 // storage for that authoritative mapping is intentionally a separate runtime
 // concern from this contract type.
 type DatasetScopeResolver interface {
-	ResolveBackupScope(context.Context, string) (DatasetScopeMapping, error)
+	ResolveBackupScope(ctx context.Context, datasetID string) (DatasetScopeMapping, error)
 }

@@ -26,6 +26,7 @@ func TestCheckpointStatusReadyForProtectedChangeRequiresRecoveryEvidence(t *test
 	if err := ready.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
+
 	if !ready.ReadyForProtectedChange() {
 		t.Fatal("integrity-verified usable recovery point was not ready")
 	}
@@ -56,9 +57,11 @@ func TestCheckpointStatusReadyForProtectedChangeRequiresRecoveryEvidence(t *test
 		t.Run(tc.name, func(t *testing.T) {
 			status := validCompletedCheckpointStatus()
 			tc.mutate(&status)
+
 			if err := status.Validate(); err != nil {
 				t.Fatalf("Validate() error = %v", err)
 			}
+
 			if status.ReadyForProtectedChange() {
 				t.Fatal("status unexpectedly allowed protected change")
 			}
@@ -79,7 +82,7 @@ func TestCheckpointStatusRejectsContradictoryEvidence(t *testing.T) {
 				OperationID:     "operation-1",
 				DatasetID:       "dataset-1",
 				BackupScopeID:   "scope-1",
-				ObservedAt:      time.Now().UTC(),
+				ObservedAt:      validCompletedCheckpointStatus().ObservedAt,
 				State:           CheckpointStateAccepted,
 				RecoveryPointID: "recovery-point-1",
 			},
@@ -92,7 +95,7 @@ func TestCheckpointStatusRejectsContradictoryEvidence(t *testing.T) {
 				OperationID:     "operation-1",
 				DatasetID:       "dataset-1",
 				BackupScopeID:   "scope-1",
-				ObservedAt:      time.Now().UTC(),
+				ObservedAt:      validCompletedCheckpointStatus().ObservedAt,
 				State:           CheckpointStateFailed,
 			},
 		},
@@ -104,7 +107,7 @@ func TestCheckpointStatusRejectsContradictoryEvidence(t *testing.T) {
 				OperationID:     "operation-1",
 				DatasetID:       "dataset-1",
 				BackupScopeID:   "scope-1",
-				ObservedAt:      time.Now().UTC(),
+				ObservedAt:      validCompletedCheckpointStatus().ObservedAt,
 				State:           CheckpointStateCompleted,
 			},
 		},
@@ -116,7 +119,7 @@ func TestCheckpointStatusRejectsContradictoryEvidence(t *testing.T) {
 				OperationID:     "operation-1",
 				DatasetID:       "dataset-1",
 				BackupScopeID:   "scope-1",
-				ObservedAt:      time.Now().UTC(),
+				ObservedAt:      validCompletedCheckpointStatus().ObservedAt,
 				State:           CheckpointStateCompleted,
 				RecoveryPointID: "recovery-point-1",
 				RestoreVerified: true,
@@ -127,6 +130,7 @@ func TestCheckpointStatusRejectsContradictoryEvidence(t *testing.T) {
 			if err := tc.status.Validate(); err == nil {
 				t.Fatal("Validate() unexpectedly succeeded")
 			}
+
 			if tc.status.ReadyForProtectedChange() {
 				t.Fatal("contradictory status unexpectedly allowed protected change")
 			}

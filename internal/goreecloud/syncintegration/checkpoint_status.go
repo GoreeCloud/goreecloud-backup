@@ -2,14 +2,18 @@ package syncintegration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
+
+var errInvalidCheckpointStatus = errors.New("invalid checkpoint status")
 
 // CheckpointLifecycleState distinguishes request acceptance and engine activity
 // from the later existence of an independently usable recovery point.
 type CheckpointLifecycleState string
 
+// CheckpointStateAccepted and related values describe checkpoint lifecycle state.
 const (
 	CheckpointStateAccepted  CheckpointLifecycleState = "accepted"
 	CheckpointStateRunning   CheckpointLifecycleState = "running"
@@ -31,6 +35,7 @@ func (s CheckpointLifecycleState) valid() bool {
 // errors into GoreeCloud Sync.
 type CheckpointFailureCategory string
 
+// CheckpointFailureNone and related values classify bounded checkpoint failures.
 const (
 	CheckpointFailureNone         CheckpointFailureCategory = ""
 	CheckpointFailureExecution    CheckpointFailureCategory = "execution"
@@ -79,48 +84,57 @@ type CheckpointStatus struct {
 // itself does not imply that Sync may safely proceed.
 func (s CheckpointStatus) Validate() error {
 	if s.ContractVersion != ContractVersion {
-		return fmt.Errorf("unsupported contract version %q", s.ContractVersion)
+		return fmt.Errorf("%w: unsupported contract version %q", errInvalidCheckpointStatus, s.ContractVersion)
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint status request ID", s.RequestID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint status operation ID", s.OperationID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("dataset ID", s.DatasetID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("Backup scope ID", s.BackupScopeID); err != nil {
 		return err
 	}
+
 	if s.ObservedAt.IsZero() {
-		return fmt.Errorf("checkpoint status observation time must not be zero")
+		return errCheckpointStatusObservedTimeZero
 	}
+
 	if !s.State.valid() {
-		return fmt.Errorf("invalid checkpoint lifecycle state %q", s.State)
+		return fmt.Errorf("%w: invalid checkpoint lifecycle state %q", errInvalidCheckpointStatus, s.State)
 	}
 
 	switch s.State {
 	case CheckpointStateAccepted, CheckpointStateRunning:
 		if s.RecoveryPointID != "" || s.RecoveryPointUsable || s.IntegrityVerified || s.RestoreVerified || s.FailureCategory != CheckpointFailureNone {
-			return fmt.Errorf("checkpoint state %q must not claim recovery success or failure evidence", s.State)
+			return fmt.Errorf("%w: checkpoint state %q must not claim recovery success or failure evidence", errInvalidCheckpointStatus, s.State)
 		}
 	case CheckpointStateFailed:
 		if !s.FailureCategory.validFailure() {
-			return fmt.Errorf("failed checkpoint requires a bounded failure category")
+			return errCheckpointFailureCategoryRequired
 		}
+
 		if s.RecoveryPointID != "" || s.RecoveryPointUsable || s.IntegrityVerified || s.RestoreVerified {
-			return fmt.Errorf("failed checkpoint must not claim a usable or verified recovery point")
+			return errFailedCheckpointRecoveryEvidence
 		}
 	case CheckpointStateCompleted:
 		if s.FailureCategory != CheckpointFailureNone {
-			return fmt.Errorf("completed checkpoint must not carry a failure category")
+			return errCompletedCheckpointFailureCategory
 		}
+
 		if err := validateOpaqueIdentifier("recovery point ID", s.RecoveryPointID); err != nil {
 			return fmt.Errorf("completed checkpoint requires a recovery point: %w", err)
 		}
+
 		if s.RestoreVerified && (!s.RecoveryPointUsable || !s.IntegrityVerified) {
-			return fmt.Errorf("restore verification requires a usable integrity-verified recovery point")
+			return errRestoreVerificationEvidenceIncomplete
 		}
 	}
 
@@ -134,36 +148,47 @@ func (s CheckpointStatus) ValidateForSubmission(submission CheckpointSubmission)
 	if err := s.Validate(); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission request ID", submission.RequestID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission operation ID", submission.OperationID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission dataset ID", submission.DatasetID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission Backup scope ID", submission.BackupScopeID); err != nil {
 		return err
 	}
+
 	if submission.AcceptedAt.IsZero() {
-		return fmt.Errorf("checkpoint submission acceptance time must not be zero")
+		return errCheckpointSubmissionAcceptedAtZero
 	}
+
 	if s.RequestID != submission.RequestID {
-		return fmt.Errorf("checkpoint status request ID does not match submission")
+		return errCheckpointStatusRequestMismatch
 	}
+
 	if s.OperationID != submission.OperationID {
-		return fmt.Errorf("checkpoint status operation ID does not match submission")
+		return errCheckpointStatusOperationMismatch
 	}
+
 	if s.DatasetID != submission.DatasetID {
-		return fmt.Errorf("checkpoint status dataset ID does not match submission")
+		return errCheckpointStatusDatasetMismatch
 	}
+
 	if s.BackupScopeID != submission.BackupScopeID {
-		return fmt.Errorf("checkpoint status Backup scope ID does not match submission")
+		return errCheckpointStatusScopeMismatch
 	}
+
 	if s.ObservedAt.Before(submission.AcceptedAt) {
-		return fmt.Errorf("checkpoint status predates checkpoint submission")
+		return errCheckpointStatusPredatesSubmission
 	}
+
 	return nil
 }
 
@@ -187,5 +212,5 @@ func (s CheckpointStatus) ReadyForProtectedChange() bool {
 // subject to the separately authenticated and authorized runtime boundary; a
 // CheckpointSubmission is correlation evidence, not a bearer credential.
 type CheckpointStatusProvider interface {
-	CheckpointStatus(context.Context, string) (CheckpointStatus, error)
+	CheckpointStatus(ctx context.Context, operationID string) (CheckpointStatus, error)
 }

@@ -29,12 +29,15 @@ func (d AuthorizationDecision) validateForCheckpoint(request CheckpointRequest) 
 	if err := validateOpaqueIdentifier("authorization decision reference", d.DecisionRef); err != nil {
 		return fmt.Errorf("invalid authorization decision: %w", err)
 	}
+
 	if d.DecisionRef != request.AuthorizationDecisionRef {
-		return fmt.Errorf("authorization decision reference does not match checkpoint request")
+		return errAuthorizationDecisionMismatch
 	}
+
 	if !d.Allowed {
 		return ErrAuthorizationDenied
 	}
+
 	return nil
 }
 
@@ -46,7 +49,7 @@ func (d AuthorizationDecision) validateForCheckpoint(request CheckpointRequest) 
 // credential format, or token type. Those concerns belong to the authorized
 // platform adapter rather than the recovery-domain contract.
 type CheckpointAuthorizer interface {
-	AuthorizeCheckpoint(context.Context, CheckpointRequest) (AuthorizationDecision, error)
+	AuthorizeCheckpoint(ctx context.Context, request CheckpointRequest) (AuthorizationDecision, error)
 }
 
 // AuthorizedCheckpointRequest is produced only after CheckpointService has
@@ -85,27 +88,35 @@ func (s CheckpointSubmission) validateForRequest(request AuthorizedCheckpointReq
 	if err := validateOpaqueIdentifier("checkpoint submission request ID", s.RequestID); err != nil {
 		return err
 	}
+
 	if s.RequestID != request.RequestID {
-		return fmt.Errorf("checkpoint submission request ID does not match request")
+		return errCheckpointSubmissionRequestMismatch
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint operation ID", s.OperationID); err != nil {
 		return err
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission dataset ID", s.DatasetID); err != nil {
 		return err
 	}
+
 	if s.DatasetID != request.DatasetID {
-		return fmt.Errorf("checkpoint submission dataset ID does not match request")
+		return errCheckpointSubmissionDatasetMismatch
 	}
+
 	if err := validateOpaqueIdentifier("checkpoint submission Backup scope ID", s.BackupScopeID); err != nil {
 		return err
 	}
+
 	if s.BackupScopeID != request.BackupScopeID {
-		return fmt.Errorf("checkpoint submission Backup scope ID does not match resolved scope")
+		return errCheckpointSubmissionScopeMismatch
 	}
+
 	if s.AcceptedAt.IsZero() {
-		return fmt.Errorf("checkpoint submission acceptance time must not be zero")
+		return errCheckpointSubmissionAcceptedAtZero
 	}
+
 	return nil
 }
 
@@ -113,7 +124,7 @@ func (s CheckpointSubmission) validateForRequest(request AuthorizedCheckpointReq
 // already-authorized checkpoint request. Implementations must still preserve
 // Backup's own policy, repository, verification, and recovery semantics.
 type CheckpointExecutor interface {
-	RequestCheckpoint(context.Context, AuthorizedCheckpointRequest) (CheckpointSubmission, error)
+	RequestCheckpoint(ctx context.Context, request AuthorizedCheckpointRequest) (CheckpointSubmission, error)
 }
 
 // CheckpointService enforces the source-level authorization and scope-mapping
@@ -129,14 +140,17 @@ type CheckpointService struct {
 // mapping, and a Backup-owned checkpoint executor are all provided.
 func NewCheckpointService(authorizer CheckpointAuthorizer, resolver DatasetScopeResolver, executor CheckpointExecutor) (*CheckpointService, error) {
 	if authorizer == nil {
-		return nil, fmt.Errorf("checkpoint authorizer is required")
+		return nil, errCheckpointAuthorizerRequired
 	}
+
 	if resolver == nil {
-		return nil, fmt.Errorf("dataset scope resolver is required")
+		return nil, errDatasetScopeResolverRequired
 	}
+
 	if executor == nil {
-		return nil, fmt.Errorf("checkpoint executor is required")
+		return nil, errCheckpointExecutorRequired
 	}
+
 	return &CheckpointService{authorizer: authorizer, resolver: resolver, executor: executor}, nil
 }
 
@@ -153,14 +167,17 @@ func NewCheckpointService(authorizer CheckpointAuthorizer, resolver DatasetScope
 // all fail closed.
 func (s *CheckpointService) RequestCheckpoint(ctx context.Context, request CheckpointRequest) (CheckpointSubmission, error) {
 	if s == nil || s.authorizer == nil || s.resolver == nil || s.executor == nil {
-		return CheckpointSubmission{}, fmt.Errorf("checkpoint service is not initialized")
+		return CheckpointSubmission{}, errCheckpointServiceNotInitialized
 	}
+
 	if ctx == nil {
-		return CheckpointSubmission{}, fmt.Errorf("context is required")
+		return CheckpointSubmission{}, errContextRequired
 	}
+
 	if err := ValidateOperation(OperationRequestCheckpoint); err != nil {
 		return CheckpointSubmission{}, err
 	}
+
 	if err := request.Validate(); err != nil {
 		return CheckpointSubmission{}, err
 	}
@@ -169,6 +186,7 @@ func (s *CheckpointService) RequestCheckpoint(ctx context.Context, request Check
 	if err != nil {
 		return CheckpointSubmission{}, fmt.Errorf("authorize checkpoint: %w", err)
 	}
+
 	if err := decision.validateForCheckpoint(request); err != nil {
 		return CheckpointSubmission{}, err
 	}
@@ -177,6 +195,7 @@ func (s *CheckpointService) RequestCheckpoint(ctx context.Context, request Check
 	if err != nil {
 		return CheckpointSubmission{}, fmt.Errorf("resolve Backup scope: %w", err)
 	}
+
 	if err := mapping.validateForDataset(request.DatasetID); err != nil {
 		return CheckpointSubmission{}, fmt.Errorf("invalid Backup scope mapping: %w", err)
 	}
@@ -195,8 +214,10 @@ func (s *CheckpointService) RequestCheckpoint(ctx context.Context, request Check
 	if err != nil {
 		return CheckpointSubmission{}, fmt.Errorf("request checkpoint: %w", err)
 	}
+
 	if err := submission.validateForRequest(authorized); err != nil {
 		return CheckpointSubmission{}, fmt.Errorf("invalid checkpoint submission: %w", err)
 	}
+
 	return submission, nil
 }

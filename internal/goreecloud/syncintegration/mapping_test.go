@@ -23,6 +23,7 @@ func TestDatasetScopeMappingValidation(t *testing.T) {
 	if err := mapping.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
+
 	if err := mapping.validateForDataset(mapping.DatasetID); err != nil {
 		t.Fatalf("validateForDataset() error = %v", err)
 	}
@@ -42,6 +43,7 @@ func TestDatasetScopeMappingRejectsInvalidOrMismatchedState(t *testing.T) {
 			mapping: func() DatasetScopeMapping {
 				m := valid
 				m.ContractVersion = "goreecloud.backup-sync/v2"
+
 				return m
 			}(),
 			dataset: valid.DatasetID,
@@ -51,6 +53,7 @@ func TestDatasetScopeMappingRejectsInvalidOrMismatchedState(t *testing.T) {
 			mapping: func() DatasetScopeMapping {
 				m := valid
 				m.BackupScopeID = ""
+
 				return m
 			}(),
 			dataset: valid.DatasetID,
@@ -60,6 +63,7 @@ func TestDatasetScopeMappingRejectsInvalidOrMismatchedState(t *testing.T) {
 			mapping: func() DatasetScopeMapping {
 				m := valid
 				m.UpdatedAt = time.Time{}
+
 				return m
 			}(),
 			dataset: valid.DatasetID,
@@ -74,6 +78,7 @@ func TestDatasetScopeMappingRejectsInvalidOrMismatchedState(t *testing.T) {
 			mapping: func() DatasetScopeMapping {
 				m := valid
 				m.Active = false
+
 				return m
 			}(),
 			dataset: valid.DatasetID,
@@ -85,6 +90,7 @@ func TestDatasetScopeMappingRejectsInvalidOrMismatchedState(t *testing.T) {
 			if err == nil {
 				t.Fatal("validateForDataset() unexpectedly succeeded")
 			}
+
 			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
 				t.Fatalf("validateForDataset() error = %v, want %v", err, tc.wantErr)
 			}

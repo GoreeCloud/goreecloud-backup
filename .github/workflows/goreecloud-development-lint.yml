@@ -1,0 +1,71 @@
+name: GoreeCloud Development Lint
+
+on:
+  pull_request:
+    branches:
+      - agent/goreecloud-foundation
+    paths:
+      - "internal/goreecloud/**"
+      - ".golangci.yml"
+      - ".github/workflows/goreecloud-development-lint.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint GoreeCloud-owned development code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact candidate
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: true
+
+      - name: Install repository-pinned linter
+        shell: bash
+        run: make install-linter
+
+      - name: Lint GoreeCloud-owned packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/.tools/golangci-lint-2.13.2/golangci-lint \
+            --timeout 1200s \
+            run \
+            ./internal/goreecloud/...
+
+      - name: Lint GoreeCloud-owned packages for Windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOOS=windows GOARCH=amd64 \
+            tools/.tools/golangci-lint-2.13.2/golangci-lint \
+            --timeout 1200s \
+            run \
+            ./internal/goreecloud/...
+
+      - name: Check repository locks
+        shell: bash
+        run: make check-locks
+
+      - name: Check formatting
+        shell: bash
+        run: make check-prettier

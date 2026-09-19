@@ -13,15 +13,19 @@ import (
 	"sync"
 )
 
+var errInvalidDatasetScopeStore = errors.New("invalid dataset-scope mapping store")
+
 const (
 	datasetScopeStoreVersion = 1
 	maxDatasetScopeMappings  = 4096
 )
 
+const mappingStoreFileMode = 0o600
+
 // ErrDatasetScopeStoreNotInitialized indicates that the configured durable
 // mapping file does not yet exist. This is kept distinct from an initialized
 // store that simply has no mapping for the requested dataset.
-var ErrDatasetScopeStoreNotInitialized = errors.New("Backup dataset-scope mapping store is not initialized")
+var ErrDatasetScopeStoreNotInitialized = errors.New("backup dataset-scope mapping store is not initialized")
 
 type datasetScopeStoreFile struct {
 	Version  int                   `json:"version"`
@@ -46,13 +50,15 @@ type FileDatasetScopeStore struct {
 // does not create the file or its parent directory.
 func NewFileDatasetScopeStore(path string) (*FileDatasetScopeStore, error) {
 	if path == "" {
-		return nil, fmt.Errorf("dataset-scope mapping store path must not be empty")
+		return nil, errMappingStorePathEmpty
 	}
+
 	clean := filepath.Clean(path)
 	if clean == "." || filepath.Base(clean) == "." || filepath.Base(clean) == string(filepath.Separator) {
-		return nil, fmt.Errorf("dataset-scope mapping store path must identify a file")
+		return nil, errMappingStorePathInvalid
 	}
-	return &FileDatasetScopeStore{path: clean}, nil
+
+	return &FileDatasetScopeStore{path: clean, mu: sync.RWMutex{}}, nil
 }
 
 // ReplaceMappings atomically replaces the complete durable mapping set after
@@ -60,13 +66,15 @@ func NewFileDatasetScopeStore(path string) (*FileDatasetScopeStore, error) {
 // not part of the Backup-to-Sync Operation allowlist.
 func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []DatasetScopeMapping) error {
 	if s == nil || s.path == "" {
-		return fmt.Errorf("dataset-scope mapping store is not initialized")
+		return errMappingStoreNotInitialized
 	}
+
 	if ctx == nil {
-		return fmt.Errorf("context is required")
+		return errContextRequired
 	}
+
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
 
 	snapshot := append([]DatasetScopeMapping(nil), mappings...)
@@ -81,14 +89,16 @@ func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []
 	if err != nil {
 		return fmt.Errorf("encode dataset-scope mappings: %w", err)
 	}
+
 	payload = append(payload, '\n')
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context state: %w", err)
 	}
+
 	return writePrivateAtomicFile(s.path, payload)
 }
 
@@ -98,14 +108,17 @@ func (s *FileDatasetScopeStore) ReplaceMappings(ctx context.Context, mappings []
 // remains distinguishable from an absent mapping.
 func (s *FileDatasetScopeStore) ResolveBackupScope(ctx context.Context, datasetID string) (DatasetScopeMapping, error) {
 	if s == nil || s.path == "" {
-		return DatasetScopeMapping{}, fmt.Errorf("dataset-scope mapping store is not initialized")
+		return DatasetScopeMapping{}, errMappingStoreNotInitialized
 	}
+
 	if ctx == nil {
-		return DatasetScopeMapping{}, fmt.Errorf("context is required")
+		return DatasetScopeMapping{}, errContextRequired
 	}
+
 	if err := ctx.Err(); err != nil {
-		return DatasetScopeMapping{}, err
+		return DatasetScopeMapping{}, fmt.Errorf("context state: %w", err)
 	}
+
 	if err := validateOpaqueIdentifier("dataset ID", datasetID); err != nil {
 		return DatasetScopeMapping{}, err
 	}
@@ -117,11 +130,13 @@ func (s *FileDatasetScopeStore) ResolveBackupScope(ctx context.Context, datasetI
 	if err != nil {
 		return DatasetScopeMapping{}, err
 	}
+
 	for _, mapping := range mappings {
 		if mapping.DatasetID == datasetID {
 			return mapping, nil
 		}
 	}
+
 	return DatasetScopeMapping{}, ErrDatasetScopeMappingNotFound
 }
 
@@ -131,51 +146,65 @@ func (s *FileDatasetScopeStore) loadMappings() ([]DatasetScopeMapping, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrDatasetScopeStoreNotInitialized
 		}
+
 		return nil, fmt.Errorf("stat dataset-scope mapping store: %w", err)
 	}
+
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("dataset-scope mapping store must be a regular file")
+		return nil, errMappingStoreNotRegularFile
 	}
+
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return nil, fmt.Errorf("dataset-scope mapping store permissions must not grant group or other access")
+		return nil, errMappingStorePermissions
 	}
 
 	payload, err := os.ReadFile(s.path)
 	if err != nil {
 		return nil, fmt.Errorf("read dataset-scope mapping store: %w", err)
 	}
+
 	var stored datasetScopeStoreFile
+
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
+
 	if err := decoder.Decode(&stored); err != nil {
 		return nil, fmt.Errorf("decode dataset-scope mapping store: %w", err)
 	}
+
 	if err := requireJSONEOF(decoder); err != nil {
 		return nil, fmt.Errorf("decode dataset-scope mapping store: %w", err)
 	}
+
 	if stored.Version != datasetScopeStoreVersion {
-		return nil, fmt.Errorf("unsupported dataset-scope mapping store version %d", stored.Version)
+		return nil, fmt.Errorf("%w: unsupported dataset-scope mapping store version %d", errInvalidDatasetScopeStore, stored.Version)
 	}
+
 	if err := validateDatasetScopeMappings(stored.Mappings); err != nil {
 		return nil, fmt.Errorf("invalid dataset-scope mapping store: %w", err)
 	}
+
 	return append([]DatasetScopeMapping(nil), stored.Mappings...), nil
 }
 
 func validateDatasetScopeMappings(mappings []DatasetScopeMapping) error {
 	if len(mappings) > maxDatasetScopeMappings {
-		return fmt.Errorf("dataset-scope mapping count exceeds %d", maxDatasetScopeMappings)
+		return fmt.Errorf("%w: dataset-scope mapping count exceeds %d", errInvalidDatasetScopeStore, maxDatasetScopeMappings)
 	}
+
 	seenDatasets := make(map[string]struct{}, len(mappings))
 	for i, mapping := range mappings {
 		if err := mapping.Validate(); err != nil {
 			return fmt.Errorf("mapping %d: %w", i, err)
 		}
+
 		if _, exists := seenDatasets[mapping.DatasetID]; exists {
-			return fmt.Errorf("duplicate dataset-scope mapping for dataset %q", mapping.DatasetID)
+			return fmt.Errorf("%w: duplicate dataset-scope mapping for dataset %q", errInvalidDatasetScopeStore, mapping.DatasetID)
 		}
+
 		seenDatasets[mapping.DatasetID] = struct{}{}
 	}
+
 	return nil
 }
 
@@ -183,45 +212,54 @@ func requireJSONEOF(decoder *json.Decoder) error {
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return fmt.Errorf("trailing JSON value is not permitted")
+			return errTrailingJSONValue
 		}
-		return err
+
+		return fmt.Errorf("decode trailing JSON value: %w", err)
 	}
+
 	return nil
 }
 
 func writePrivateAtomicFile(path string, payload []byte) error {
 	dir := filepath.Dir(path)
+
 	temp, err := os.CreateTemp(dir, ".goreecloud-backup-sync-mapping-*")
 	if err != nil {
 		return fmt.Errorf("create temporary dataset-scope mapping file: %w", err)
 	}
+
 	tempPath := temp.Name()
 	cleanup := func() {
 		_ = temp.Close()
 		_ = os.Remove(tempPath)
 	}
 
-	if err := temp.Chmod(0o600); err != nil {
+	if err := temp.Chmod(mappingStoreFileMode); err != nil {
 		cleanup()
 		return fmt.Errorf("protect temporary dataset-scope mapping file: %w", err)
 	}
+
 	if _, err := temp.Write(payload); err != nil {
 		cleanup()
 		return fmt.Errorf("write temporary dataset-scope mapping file: %w", err)
 	}
+
 	if err := temp.Sync(); err != nil {
 		cleanup()
 		return fmt.Errorf("sync temporary dataset-scope mapping file: %w", err)
 	}
+
 	if err := temp.Close(); err != nil {
 		_ = os.Remove(tempPath)
 		return fmt.Errorf("close temporary dataset-scope mapping file: %w", err)
 	}
+
 	if err := os.Rename(tempPath, path); err != nil {
 		_ = os.Remove(tempPath)
 		return fmt.Errorf("publish dataset-scope mapping file: %w", err)
 	}
+
 	return nil
 }
 

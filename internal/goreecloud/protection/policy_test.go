@@ -11,6 +11,7 @@ import (
 
 func observationsAt(observedAt time.Time) []protection.EvidenceObservation {
 	items := passingOperationalEvidence()
+
 	out := make([]protection.EvidenceObservation, 0, len(items))
 	for _, item := range items {
 		out = append(out, protection.EvidenceObservation{
@@ -19,23 +20,30 @@ func observationsAt(observedAt time.Time) []protection.EvidenceObservation {
 			ObservedAt: observedAt,
 		})
 	}
+
 	return out
 }
 
-func policyWithMaxAge(t *testing.T, kind protection.EvidenceKind, maxAge time.Duration) protection.Policy {
+func policyWithMaxAge(t *testing.T, maxAge time.Duration) protection.Policy {
 	t.Helper()
+
+	kind := protection.EvidenceIntegrity
 
 	policy := protection.BaselinePolicy()
 	policy.ID = "test-policy"
+
 	found := false
 	for i := range policy.Requirements {
 		if policy.Requirements[i].Kind == kind {
 			policy.Requirements[i].MaxAge = maxAge
 			found = true
+
 			break
 		}
 	}
+
 	require.True(t, found, "expected baseline requirement %q", kind)
+
 	return policy
 }
 
@@ -56,7 +64,7 @@ func TestPolicyCannotRemoveBaselineEvidence(t *testing.T) {
 
 func TestPolicyRejectsInvalidFreshness(t *testing.T) {
 	t.Run("negative evidence max age", func(t *testing.T) {
-		policy := policyWithMaxAge(t, protection.EvidenceIntegrity, -time.Minute)
+		policy := policyWithMaxAge(t, -time.Minute)
 		require.ErrorContains(t, policy.Validate(), "must not be negative")
 	})
 
@@ -77,7 +85,7 @@ func TestEvaluateObservedFreshness(t *testing.T) {
 	evaluatedAt := time.Date(2026, time.August, 22, 18, 0, 0, 0, time.UTC)
 
 	t.Run("fresh required evidence remains protected", func(t *testing.T) {
-		policy := policyWithMaxAge(t, protection.EvidenceIntegrity, time.Hour)
+		policy := policyWithMaxAge(t, time.Hour)
 		got, err := protection.EvaluateObserved(policy, protection.ObservedAssessment{
 			Configured: true,
 			Evidence:   observationsAt(evaluatedAt.Add(-30 * time.Minute)),
@@ -87,7 +95,7 @@ func TestEvaluateObservedFreshness(t *testing.T) {
 	})
 
 	t.Run("old passing evidence becomes stale and degraded", func(t *testing.T) {
-		policy := policyWithMaxAge(t, protection.EvidenceIntegrity, time.Hour)
+		policy := policyWithMaxAge(t, time.Hour)
 		got, err := protection.EvaluateObserved(policy, protection.ObservedAssessment{
 			Configured: true,
 			Evidence:   observationsAt(evaluatedAt.Add(-2 * time.Hour)),
@@ -99,7 +107,8 @@ func TestEvaluateObservedFreshness(t *testing.T) {
 	})
 
 	t.Run("passing evidence without timestamp becomes stale when policy requires freshness", func(t *testing.T) {
-		policy := policyWithMaxAge(t, protection.EvidenceIntegrity, time.Hour)
+		policy := policyWithMaxAge(t, time.Hour)
+
 		observations := observationsAt(evaluatedAt)
 		for i := range observations {
 			if observations[i].Kind == protection.EvidenceIntegrity {
@@ -118,6 +127,7 @@ func TestEvaluateObservedFreshness(t *testing.T) {
 
 	t.Run("producer supplied stale status remains degraded without max age", func(t *testing.T) {
 		policy := protection.BaselinePolicy()
+
 		observations := observationsAt(evaluatedAt)
 		for i := range observations {
 			if observations[i].Kind == protection.EvidenceMonitoring {

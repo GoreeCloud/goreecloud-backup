@@ -5,15 +5,19 @@
 package protection
 
 import (
+	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
 
+var errInvalidProtectionAssessment = errors.New("invalid protection assessment")
+
 // State is the user-facing protection state for a protected system or dataset.
 type State string
 
+// StateUnprotected and related values describe user-facing protection state.
 const (
 	StateUnprotected     State = "unprotected"
 	StateConfigured      State = "configured"
@@ -26,6 +30,7 @@ const (
 // EvidenceStatus describes the current status of one recovery-assurance check.
 type EvidenceStatus string
 
+// EvidenceUnknown and related values describe bounded evidence status.
 const (
 	EvidenceUnknown       EvidenceStatus = "unknown"
 	EvidencePassing       EvidenceStatus = "passing"
@@ -54,6 +59,7 @@ func (s EvidenceStatus) valid() bool {
 // EvidenceKind identifies a bounded product-layer recovery-assurance check.
 type EvidenceKind string
 
+// EvidenceRepositoryAvailable and related values identify recovery-assurance checks.
 const (
 	EvidenceRepositoryAvailable    EvidenceKind = "repository_available"
 	EvidenceCredentialsRecoverable EvidenceKind = "credentials_recoverable"
@@ -131,6 +137,7 @@ type Assessment struct {
 // Glaze UI consumers without exposing private backup contents.
 type ReasonCode string
 
+// ReasonNotConfigured and related values explain evaluated protection state.
 const (
 	ReasonNotConfigured              ReasonCode = "not_configured"
 	ReasonBackupInProgress           ReasonCode = "backup_in_progress"
@@ -168,12 +175,14 @@ type Evaluation struct {
 func Evaluate(a Assessment) (Evaluation, error) {
 	restoreVerification := normalizeEvidenceStatus(a.RestoreVerification)
 	if !restoreVerification.valid() {
-		return Evaluation{}, fmt.Errorf("invalid restore verification status %q", a.RestoreVerification)
+		return Evaluation{}, fmt.Errorf("%w: invalid restore verification status %q", errInvalidProtectionAssessment, a.RestoreVerification)
 	}
 
 	var out Evaluation
+
 	seen := map[EvidenceKind]struct{}{}
 	statusByKind := map[EvidenceKind]EvidenceStatus{}
+
 	required := map[EvidenceKind]struct{}{}
 	for _, kind := range baselineRequiredEvidence {
 		required[kind] = struct{}{}
@@ -181,19 +190,24 @@ func Evaluate(a Assessment) (Evaluation, error) {
 
 	for _, item := range a.Evidence {
 		if strings.TrimSpace(string(item.Kind)) == "" {
-			return Evaluation{}, fmt.Errorf("evidence kind must not be empty")
+			return Evaluation{}, errEvidenceKindEmpty
 		}
+
 		if !item.Kind.valid() {
-			return Evaluation{}, fmt.Errorf("invalid evidence kind %q", item.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid evidence kind %q", errInvalidProtectionAssessment, item.Kind)
 		}
+
 		status := normalizeEvidenceStatus(item.Status)
 		if !status.valid() {
-			return Evaluation{}, fmt.Errorf("invalid status %q for evidence %q", item.Status, item.Kind)
+			return Evaluation{}, fmt.Errorf("%w: invalid status %q for evidence %q", errInvalidProtectionAssessment, item.Status, item.Kind)
 		}
+
 		if _, ok := seen[item.Kind]; ok {
-			return Evaluation{}, fmt.Errorf("duplicate evidence kind %q", item.Kind)
+			return Evaluation{}, fmt.Errorf("%w: duplicate evidence kind %q", errInvalidProtectionAssessment, item.Kind)
 		}
+
 		seen[item.Kind] = struct{}{}
+
 		statusByKind[item.Kind] = status
 		if item.Required {
 			required[item.Kind] = struct{}{}
@@ -206,8 +220,9 @@ func Evaluate(a Assessment) (Evaluation, error) {
 			out.Missing = append(out.Missing, kind)
 			continue
 		}
+
 		if status == EvidenceNotApplicable {
-			return Evaluation{}, fmt.Errorf("required evidence %q cannot be not applicable", kind)
+			return Evaluation{}, fmt.Errorf("%w: required evidence %q cannot be not applicable", errInvalidProtectionAssessment, kind)
 		}
 
 		switch status {
@@ -225,6 +240,7 @@ func Evaluate(a Assessment) (Evaluation, error) {
 	if !a.Configured {
 		out.State = StateUnprotected
 		out.Reasons = []ReasonCode{ReasonNotConfigured}
+
 		return out, nil
 	}
 
@@ -233,31 +249,38 @@ func Evaluate(a Assessment) (Evaluation, error) {
 		if len(out.Failed) > 0 {
 			out.Reasons = append(out.Reasons, ReasonRequiredEvidenceFailed)
 		}
+
 		if len(out.Stale) > 0 {
 			out.Reasons = append(out.Reasons, ReasonRequiredEvidenceStale)
 		}
+
 		if restoreVerification == EvidenceFailing {
 			out.Reasons = append(out.Reasons, ReasonRestoreVerificationFailed)
 		}
+
 		if restoreVerification == EvidenceStale {
 			out.Reasons = append(out.Reasons, ReasonRestoreVerificationStale)
 		}
+
 		return out, nil
 	}
 
 	if a.BackupInProgress {
 		out.State = StateBackingUp
 		out.Reasons = []ReasonCode{ReasonBackupInProgress}
+
 		return out, nil
 	}
 
 	if len(out.Missing) > 0 {
 		out.State = StateConfigured
 		out.Reasons = []ReasonCode{ReasonRequiredEvidenceMissing}
+
 		return out, nil
 	}
 
 	out.State = StateProtected
+
 	out.Reasons = []ReasonCode{ReasonOperationalEvidencePassing}
 	if restoreVerification == EvidencePassing {
 		out.State = StateRestoreVerified
@@ -268,12 +291,13 @@ func Evaluate(a Assessment) (Evaluation, error) {
 }
 
 func sortEvidenceKinds(v []EvidenceKind) {
-	sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+	slices.Sort(v)
 }
 
 // VerificationType describes the bounded kind of representative restore test.
 type VerificationType string
 
+// VerificationFileSample and related values identify representative restore tests.
 const (
 	VerificationFileSample            VerificationType = "file_sample"
 	VerificationMetadataSample        VerificationType = "metadata_sample"
@@ -294,6 +318,7 @@ func (v VerificationType) valid() bool {
 // ValidationCheck identifies what a restore test actually validated.
 type ValidationCheck string
 
+// ValidationContentHash and related values identify restore-validation checks.
 const (
 	ValidationContentHash         ValidationCheck = "content_hash"
 	ValidationMetadata            ValidationCheck = "metadata"
@@ -317,6 +342,7 @@ func (v ValidationCheck) valid() bool {
 // other sensitive information.
 type FailureCategory string
 
+// FailureNone and related values classify bounded restore-test failures.
 const (
 	FailureNone                  FailureCategory = "none"
 	FailureRepositoryUnavailable FailureCategory = "repository_unavailable"
@@ -370,55 +396,68 @@ type RecoveryEvidence struct {
 // Validate checks that a recovery-evidence record is internally coherent.
 func (r RecoveryEvidence) Validate() error {
 	if strings.TrimSpace(r.DatasetID) == "" {
-		return fmt.Errorf("dataset ID must not be empty")
+		return errDatasetIDEmpty
 	}
+
 	if strings.TrimSpace(r.RepositoryID) == "" {
-		return fmt.Errorf("repository ID must not be empty")
+		return errRepositoryIDEmpty
 	}
+
 	if strings.TrimSpace(r.RecoveryPointID) == "" {
-		return fmt.Errorf("recovery point ID must not be empty")
+		return errRecoveryPointIDEmpty
 	}
+
 	if r.ObservedAt.IsZero() {
-		return fmt.Errorf("observed time must not be zero")
+		return errObservedTimeZero
 	}
+
 	if !r.BackupStatus.valid() || r.BackupStatus == EvidenceNotApplicable {
-		return fmt.Errorf("invalid backup status %q", r.BackupStatus)
+		return fmt.Errorf("%w: invalid backup status %q", errInvalidProtectionAssessment, r.BackupStatus)
 	}
+
 	if !r.IntegrityStatus.valid() || r.IntegrityStatus == EvidenceNotApplicable {
-		return fmt.Errorf("invalid integrity status %q", r.IntegrityStatus)
+		return fmt.Errorf("%w: invalid integrity status %q", errInvalidProtectionAssessment, r.IntegrityStatus)
 	}
+
 	if r.RestoreTest == nil {
 		return nil
 	}
 
 	t := r.RestoreTest
 	if !t.Type.valid() {
-		return fmt.Errorf("invalid restore verification type %q", t.Type)
+		return fmt.Errorf("%w: invalid restore verification type %q", errInvalidProtectionAssessment, t.Type)
 	}
+
 	if t.Status != EvidencePassing && t.Status != EvidenceFailing {
-		return fmt.Errorf("restore test status must be passing or failing, got %q", t.Status)
+		return fmt.Errorf("%w: restore test status must be passing or failing, got %q", errInvalidProtectionAssessment, t.Status)
 	}
+
 	if t.CompletedAt.IsZero() {
-		return fmt.Errorf("restore test completion time must not be zero")
+		return errRestoreTestCompletionTimeZero
 	}
+
 	if !t.FailureCategory.valid() {
-		return fmt.Errorf("invalid failure category %q", t.FailureCategory)
+		return fmt.Errorf("%w: invalid failure category %q", errInvalidProtectionAssessment, t.FailureCategory)
 	}
+
 	if t.Status == EvidencePassing && t.FailureCategory != FailureNone {
-		return fmt.Errorf("passing restore test cannot have failure category %q", t.FailureCategory)
+		return fmt.Errorf("%w: passing restore test cannot have failure category %q", errInvalidProtectionAssessment, t.FailureCategory)
 	}
+
 	if t.Status == EvidenceFailing && t.FailureCategory == FailureNone {
-		return fmt.Errorf("failing restore test must have a failure category")
+		return errRestoreFailureCategoryMissing
 	}
 
 	seenChecks := map[ValidationCheck]struct{}{}
 	for _, check := range t.Checks {
 		if !check.valid() {
-			return fmt.Errorf("invalid validation check %q", check)
+			return fmt.Errorf("%w: invalid validation check %q", errInvalidProtectionAssessment, check)
 		}
+
 		if _, ok := seenChecks[check]; ok {
-			return fmt.Errorf("duplicate validation check %q", check)
+			return fmt.Errorf("%w: duplicate validation check %q", errInvalidProtectionAssessment, check)
 		}
+
 		seenChecks[check] = struct{}{}
 	}
 
