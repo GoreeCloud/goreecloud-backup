@@ -65,6 +65,68 @@ jobs:
           ref: ${{ inputs.candidate_sha }}
           fetch-depth: 0
 
+      - name: Verify authoritative release controls
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          default_branch="${{ github.event.repository.default_branch }}"
+
+          gh api \
+            "repos/$GITHUB_REPOSITORY/branches/$default_branch" \
+            > "$RUNNER_TEMP/default-branch.json"
+
+          python3 - "$RUNNER_TEMP/default-branch.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              branch = json.load(handle)
+
+          if branch.get("protected") is not True:
+              raise SystemExit("default branch is not protected")
+
+          protection = branch.get("protection") or {}
+          checks = protection.get("required_status_checks") or {}
+          if checks.get("enforcement_level") in (None, "off"):
+              raise SystemExit("required status checks are not enforced")
+
+          named_checks = checks.get("checks") or checks.get("contexts") or []
+          if not named_checks:
+              raise SystemExit("default branch has no required status checks")
+          PY
+
+          gh api \
+            "repos/$GITHUB_REPOSITORY/environments/goreecloud-backup-release" \
+            > "$RUNNER_TEMP/release-environment.json"
+
+          python3 - "$RUNNER_TEMP/release-environment.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              environment = json.load(handle)
+
+          rules = environment.get("protection_rules") or []
+          reviewer_rules = [
+              rule for rule in rules
+              if rule.get("type") == "required_reviewers"
+          ]
+
+          if not reviewer_rules:
+              raise SystemExit(
+                  "release environment has no required-reviewer protection"
+              )
+
+          reviewers = reviewer_rules[0].get("reviewers") or []
+          if not reviewers:
+              raise SystemExit(
+                  "release environment required-reviewer rule is empty"
+              )
+          PY
+
       - name: Fail closed on release identity
         shell: bash
         env:
