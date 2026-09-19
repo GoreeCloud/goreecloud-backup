@@ -11,6 +11,7 @@ let electronApp;
 let mainPath;
 let executablePath;
 let tmpAppDataDir;
+const deferredAppDataCleanup = new Set();
 
 function getGoreeCloudBackupDir() {
   switch (process.platform + "/" + process.arch) {
@@ -224,7 +225,7 @@ async function closePackagedApp(app) {
       new Promise((_, reject) => {
         gracefulCloseTimeoutID = setTimeout(() => {
           reject(new Error("timed out waiting for graceful Electron close"));
-        }, 5000);
+        }, 3000);
       }),
     ]);
   } catch (error) {
@@ -240,7 +241,7 @@ async function closePackagedApp(app) {
     packagedProcess.kill("SIGKILL");
   }
 
-  await waitForElectronProcessExit(packagedProcess, 10000);
+  await waitForElectronProcessExit(packagedProcess, 5000);
 
   // Windows can release application-profile handles shortly after the complete
   // Electron process tree is torn down. Keep this bounded and small.
@@ -268,22 +269,44 @@ test.beforeEach(async () => {
   tmpAppDataDir = createTemporaryAppDataDir();
 });
 
-test.afterEach(async ({}, testInfo) => {
-  // Keep test-body assertions on Playwright's default 30-second budget while
-  // giving bounded process/profile cleanup enough independent time to finish.
-  // This does not relax application readiness or identity assertions.
-  testInfo.setTimeout(60000);
-
+test.afterEach(async () => {
   if (electronApp) {
     await closePackagedApp(electronApp);
   }
 
-  fs.rmSync(tmpAppDataDir, {
-    recursive: true,
-    force: true,
-    maxRetries: 40,
-    retryDelay: 250,
-  });
+  try {
+    fs.rmSync(tmpAppDataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 4,
+      retryDelay: 250,
+    });
+  } catch (error) {
+    if (!["EPERM", "EBUSY", "ENOTEMPTY"].includes(error.code)) {
+      throw error;
+    }
+
+    // Electron/Chromium can release profile handles shortly after the main
+    // process exits, especially on Windows. Defer only transient lock cleanup;
+    // afterAll still fails if the directory cannot be removed.
+    deferredAppDataCleanup.add(tmpAppDataDir);
+    console.warn("deferring locked application profile cleanup:", error.message);
+  }
+});
+
+test.afterAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60000);
+
+  for (const appDataDir of deferredAppDataCleanup) {
+    fs.rmSync(appDataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 40,
+      retryDelay: 250,
+    });
+  }
+
+  deferredAppDataCleanup.clear();
 });
 
 test("opens repository window on first start", async () => {
