@@ -21,7 +21,9 @@ const (
 // ErrDatasetScopeStoreNotInitialized indicates that the configured durable
 // mapping file does not yet exist. This is kept distinct from an initialized
 // store that simply has no mapping for the requested dataset.
-var ErrDatasetScopeStoreNotInitialized = errors.New("Backup dataset-scope mapping store is not initialized")
+const mappingStoreFileMode = 0o600
+
+var ErrDatasetScopeStoreNotInitialized = errors.New("backup dataset-scope mapping store is not initialized")
 
 type datasetScopeStoreFile struct {
 	Version  int                   `json:"version"`
@@ -231,7 +233,7 @@ func writePrivateAtomicFile(path string, payload []byte) error {
 		_ = os.Remove(tempPath)
 	}
 
-	if err := temp.Chmod(0o600); err != nil {
+	if err := temp.Chmod(mappingStoreFileMode); err != nil {
 		cleanup()
 		return fmt.Errorf("protect temporary dataset-scope mapping file: %w", err)
 	}
