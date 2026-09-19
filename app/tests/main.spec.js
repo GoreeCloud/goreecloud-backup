@@ -174,10 +174,11 @@ function waitForElectronProcessExit(childProcess, timeoutMs = 10000) {
 }
 
 /**
- * Closes the isolated packaged Electron test process without allowing teardown
- * to consume the test timeout. The embedded test servers receive an immediate
- * stop request, then the test-only Electron process is terminated and its
- * OS-level exit is observed before the temporary profile is removed.
+ * Closes the packaged Electron test process without allowing teardown to hang
+ * indefinitely. The embedded backup servers are stopped first. Playwright gets
+ * a bounded graceful-close window; if the packaged process is still alive, the
+ * test harness terminates it and still waits for the OS-level exit signal
+ * before removing the temporary profile.
  *
  * @param {Electron.App} app
  * @returns {Promise<void>}
@@ -186,41 +187,41 @@ async function closePackagedApp(app) {
   const packagedProcess = app.process();
   const processExited = waitForElectronProcessExit(packagedProcess, 10000);
 
-  let stopRequestTimeoutID;
+  await app.evaluate(async ({ app: electronApplication }) => {
+    await electronApplication.testHooks.stopAllServers();
+  });
+
+  let gracefulCloseTimedOut = false;
+  let closeTimeoutID;
 
   try {
     await Promise.race([
-      app.evaluate(async ({ app: electronApplication }) => {
-        electronApplication.testHooks.stopAllServersNow();
-      }),
+      app.close(),
       new Promise((_, reject) => {
-        stopRequestTimeoutID = setTimeout(() => {
-          reject(new Error("timed out requesting embedded server shutdown"));
-        }, 2000);
+        closeTimeoutID = setTimeout(() => {
+          reject(new Error("timed out waiting for Playwright Electron close"));
+        }, 5000);
       }),
     ]);
   } catch (error) {
-    // Teardown must still terminate the isolated test process even if the
-    // renderer/main-process connection is already degraded.
-    console.warn("unable to request embedded server shutdown:", error.message);
+    if (error.message !== "timed out waiting for Playwright Electron close") {
+      throw error;
+    }
+
+    gracefulCloseTimedOut = true;
   } finally {
-    clearTimeout(stopRequestTimeoutID);
+    clearTimeout(closeTimeoutID);
   }
 
   if (
+    gracefulCloseTimedOut &&
     packagedProcess.exitCode === null &&
     packagedProcess.signalCode === null
   ) {
-    packagedProcess.kill("SIGKILL");
+    packagedProcess.kill();
   }
 
   await processExited;
-
-  // Windows can release application-profile handles shortly after process
-  // exit. Give the OS a short bounded interval before recursive cleanup.
-  if (process.platform === "win32") {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
 }
 
 test.beforeAll(() => {
@@ -250,8 +251,8 @@ test.afterEach(async () => {
   fs.rmSync(tmpAppDataDir, {
     recursive: true,
     force: true,
-    maxRetries: 40,
-    retryDelay: 250,
+    maxRetries: 10,
+    retryDelay: 100,
   });
 });
 

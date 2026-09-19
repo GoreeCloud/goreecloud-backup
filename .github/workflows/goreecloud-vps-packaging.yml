@@ -1,0 +1,372 @@
+name: GoreeCloud VPS Packaging
+
+on:
+  pull_request:
+    paths:
+      - ".dockerignore"
+      - "deploy/docker/**"
+      - "deploy/systemd/**"
+      - ".github/workflows/goreecloud-vps-packaging.yml"
+      - ".github/workflows/goreecloud-vps-release.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate governed VPS CLI packaging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact candidate
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Validate shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n deploy/docker/entrypoint.sh
+          sh -n deploy/docker/build-image.sh
+          sh -n deploy/docker/goreecloud-backup.sh
+          sh -n deploy/docker/vps-preflight.sh
+          python3 -m py_compile deploy/docker/validate-source-scope.py
+          python3 -m py_compile deploy/docker/validate-snapshot-evidence.py
+          python3 -m py_compile deploy/docker/record-status.py
+
+      - name: Validate Compose rendering
+        shell: bash
+        env:
+          GOREECLOUD_BACKUP_IMAGE: ghcr.io/goreecloud/goreecloud-backup:0.0.0-ci@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          GOREECLOUD_BACKUP_UID: "10001"
+          GOREECLOUD_BACKUP_GID: "10001"
+          GOREECLOUD_BACKUP_CLIENT_HOSTNAME: goreecloud-vps-01
+          GOREECLOUD_BACKUP_CLIENT_USERNAME: root
+          GOREECLOUD_BACKUP_REPOSITORY_ID: 9c06aa19383f1e002c97ecb9ed8e4524473534fee5f21aef1f1911117be78e50
+          GOREECLOUD_BACKUP_CONFIG_DIR: /tmp/goreecloud-backup/config
+          GOREECLOUD_BACKUP_CACHE_DIR: /tmp/goreecloud-backup/cache
+          GOREECLOUD_BACKUP_LOG_DIR: /tmp/goreecloud-backup/logs
+          GOREECLOUD_BACKUP_TMP_DIR: /tmp/goreecloud-backup/tmp
+          GOREECLOUD_BACKUP_RESTORE_DIR: /tmp/goreecloud-backup/restore
+          GOREECLOUD_BACKUP_SFTP_HOST: backup-repository.internal
+          GOREECLOUD_BACKUP_SFTP_PORT: "22"
+          GOREECLOUD_BACKUP_SFTP_USERNAME: backup
+          GOREECLOUD_BACKUP_SFTP_REPOSITORY_PATH: /repository
+          GOREECLOUD_BACKUP_SFTP_KEY_FILE: /tmp/goreecloud-backup/secrets/kopia-sftp-ed25519
+          GOREECLOUD_BACKUP_SFTP_KNOWN_HOSTS_FILE: /tmp/goreecloud-backup/secrets/kopia-sftp-known_hosts
+          GOREECLOUD_BACKUP_REPOSITORY_PASSWORD_FILE: /tmp/goreecloud-backup/secrets/repository-password
+        run: |
+          set -euo pipefail
+          mkdir -p             /tmp/goreecloud-backup/config             /tmp/goreecloud-backup/cache             /tmp/goreecloud-backup/logs             /tmp/goreecloud-backup/tmp             /tmp/goreecloud-backup/restore             /tmp/goreecloud-backup/secrets
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/repository-password
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/kopia-sftp-ed25519
+          printf '%s\n' ci-only > /tmp/goreecloud-backup/secrets/kopia-sftp-known_hosts
+
+          docker compose \
+            --file deploy/docker/compose.yaml \
+            config > /tmp/goreecloud-backup-compose.yaml
+
+          mkdir -p /tmp/goreecloud-backup/current-source
+
+          cat > /tmp/goreecloud-backup-sources.yaml <<'YAML'
+          services:
+            backup:
+              volumes:
+                - type: bind
+                  source: /tmp/goreecloud-backup/current-source
+                  target: /source/current
+                  read_only: true
+          YAML
+
+          docker compose \
+            --file deploy/docker/compose.yaml \
+            --file /tmp/goreecloud-backup-sources.yaml \
+            config --format json \
+            | python3 deploy/docker/validate-source-scope.py --require-host-readable \
+            | grep -Fxq '/source/current'
+
+          if docker compose \
+              --file deploy/docker/compose.yaml \
+              config --format json \
+              | python3 deploy/docker/validate-source-scope.py --require-host-readable; then
+            echo "empty backup source scope unexpectedly passed validation" >&2
+            exit 1
+          fi
+
+          cat > /tmp/goreecloud-backup-writable-source.yaml <<'YAML'
+          services:
+            backup:
+              volumes:
+                - type: bind
+                  source: /tmp/goreecloud-backup/current-source
+                  target: /source/current
+                  read_only: false
+          YAML
+
+          if docker compose \
+              --file deploy/docker/compose.yaml \
+              --file /tmp/goreecloud-backup-writable-source.yaml \
+              config --format json \
+              | python3 deploy/docker/validate-source-scope.py --require-host-readable; then
+            echo "writable backup source unexpectedly passed validation" >&2
+            exit 1
+          fi
+
+          cat > /tmp/goreecloud-backup-snapshot.json <<'JSON'
+          {
+            "id": "0123456789abcdef0123456789abcdef",
+            "source": {
+              "host": "goreecloud-vps-01",
+              "userName": "root",
+              "path": "/source"
+            },
+            "stats": {
+              "totalSize": 1,
+              "fileCount": 1,
+              "dirCount": 1,
+              "ignoredErrorCount": 0,
+              "errorCount": 0
+            },
+            "rootEntry": {
+              "obj": "k0123456789abcdef0123456789abcdef"
+            }
+          }
+          JSON
+
+          expected_snapshot_evidence="$(printf '%s\t%s' \
+            '0123456789abcdef0123456789abcdef' \
+            'k0123456789abcdef0123456789abcdef')"
+
+          python3 deploy/docker/validate-snapshot-evidence.py \
+            --expected-source root@goreecloud-vps-01:/source \
+            < /tmp/goreecloud-backup-snapshot.json \
+            | grep -Fxq "$expected_snapshot_evidence"
+
+          python3 - <<'PY' > /tmp/goreecloud-backup-empty-snapshot.json
+          import json
+          with open("/tmp/goreecloud-backup-snapshot.json", encoding="utf-8") as f:
+              data = json.load(f)
+          data["stats"]["fileCount"] = 0
+          data["stats"]["dirCount"] = 0
+          print(json.dumps(data))
+          PY
+
+          if python3 deploy/docker/validate-snapshot-evidence.py \
+              --expected-source root@goreecloud-vps-01:/source \
+              < /tmp/goreecloud-backup-empty-snapshot.json; then
+            echo "zero-content snapshot unexpectedly passed validation" >&2
+            exit 1
+          fi
+
+          status_dir=/tmp/goreecloud-backup-status-test
+          operation_id="$(
+            python3 deploy/docker/record-status.py \
+              --status-file "$status_dir/status.json" \
+              --events-file "$status_dir/events.jsonl" \
+              --operation backup \
+              started
+          )"
+
+          python3 deploy/docker/record-status.py \
+            --status-file "$status_dir/status.json" \
+            --events-file "$status_dir/events.jsonl" \
+            --operation backup \
+            --operation-id "$operation_id" \
+            --snapshot-id 0123456789abcdef0123456789abcdef \
+            succeeded
+
+          python3 - "$status_dir/status.json" "$status_dir/events.jsonl" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              status = json.load(handle)
+
+          assert status["protectionState"] == "Configured"
+          assert status["monitoringIntegrationState"] == "NotYetAccepted"
+          assert status["notificationIntegrationState"] == "NotYetAccepted"
+          assert status["lastSuccessfulBackup"]["snapshotId"] == (
+              "0123456789abcdef0123456789abcdef"
+          )
+          assert "currentOperation" not in status
+
+          with open(sys.argv[2], encoding="utf-8") as handle:
+              events = [json.loads(line) for line in handle if line.strip()]
+
+          assert events[-2]["eventName"].endswith(".started")
+          assert events[-1]["eventName"].endswith(".succeeded")
+          assert all("message" not in event for event in events)
+          PY
+
+      - name: Enforce production-safe CLI invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -Eq '^[[:space:]]*privileged:[[:space:]]*true' deploy/docker/compose.yaml; then
+            echo "privileged containers are prohibited" >&2
+            exit 1
+          fi
+
+          if grep -Eq '^[[:space:]]*(ports|expose):' deploy/docker/compose.yaml; then
+            echo "the CLI replacement must not publish or expose a service port" >&2
+            exit 1
+          fi
+
+          if grep -q -- '--disable-csrf-token-checks' deploy/docker/compose.yaml deploy/docker/Dockerfile deploy/docker/*.sh; then
+            echo "CSRF bypass must not appear in production packaging" >&2
+            exit 1
+          fi
+
+          if grep -q -- 'server start' deploy/docker/compose.yaml deploy/docker/Dockerfile deploy/docker/*.sh; then
+            echo "the initial VPS replacement must remain an on-demand CLI workload" >&2
+            exit 1
+          fi
+
+          if grep -Eq 'image:.*:latest([@"[:space:]]|$)' deploy/docker/compose.yaml; then
+            echo "mutable latest image references are prohibited" >&2
+            exit 1
+          fi
+
+          grep -q 'restart: "no"' deploy/docker/compose.yaml
+          grep -q 'cap_drop:' deploy/docker/compose.yaml
+          grep -q 'no-new-privileges:true' deploy/docker/compose.yaml
+          grep -q 'read_only: true' deploy/docker/compose.yaml
+          grep -q 'GOREECLOUD_BACKUP_IMAGE:?' deploy/docker/compose.yaml
+          grep -q 'GO_BUILD_IMAGE' deploy/docker/Dockerfile
+          grep -q 'RUNTIME_IMAGE' deploy/docker/Dockerfile
+          grep -q 'GOREECLOUD_BACKUP_PUSH' deploy/docker/build-image.sh
+          grep -q -- '--provenance=mode=max' deploy/docker/build-image.sh
+          grep -q 'type=sbom,generator=' deploy/docker/build-image.sh
+          grep -q 'workflow_dispatch:' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'environment: goreecloud-backup-release' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'HIGH,CRITICAL' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'COSIGN_PRIVATE_KEY' .github/workflows/goreecloud-vps-release.yml
+          grep -q 'gh release create' .github/workflows/goreecloud-vps-release.yml
+
+          if grep -q 'pull_request:' .github/workflows/goreecloud-vps-release.yml; then
+            echo "privileged VPS release workflow must not execute on pull requests" >&2
+            exit 1
+          fi
+          grep -q 'compose.sources.yaml' deploy/docker/goreecloud-backup.sh
+          grep -q 'validate-source-scope.py' deploy/docker/goreecloud-backup.sh
+          python3 - <<'PY'
+          from pathlib import Path
+
+          text = Path("deploy/docker/goreecloud-backup.sh").read_text(encoding="utf-8")
+          start = text.find("create_validated_snapshot() {")
+          end = text.find("\n}\n", start)
+          if start < 0 or end < 0:
+              raise SystemExit("create_validated_snapshot() was not found")
+
+          body = text[start:end]
+          required = ["snapshot create", "--fail-fast", "--json", '--tags "$tag"', "/source"]
+          positions = [body.find(value) for value in required]
+          if any(position < 0 for position in positions) or positions != sorted(positions):
+              raise SystemExit("validated snapshot command no longer preserves fail-fast source ordering")
+          PY
+          grep -q 'connect-repository' deploy/docker/goreecloud-backup.sh
+          grep -q '__goreecloud_connect_existing_sftp' deploy/docker/entrypoint.sh
+          grep -q '__goreecloud_validate_repository' deploy/docker/entrypoint.sh
+          grep -q -- '--override-hostname' deploy/docker/entrypoint.sh
+          grep -q -- '--override-username' deploy/docker/entrypoint.sh
+          grep -q 'Unique ID:' deploy/docker/entrypoint.sh
+          grep -q 'Storage type:' deploy/docker/entrypoint.sh
+          grep -q 'repository connect' deploy/docker/entrypoint.sh
+          grep -q 'repository status' deploy/docker/goreecloud-backup.sh
+          grep -q 'acceptance-recovery' deploy/docker/goreecloud-backup.sh
+          grep -q 'validate-snapshot-evidence.py' deploy/docker/goreecloud-backup.sh
+          grep -q -- '--verify-files-percent=100' deploy/docker/goreecloud-backup.sh
+          grep -q 'snapshot restore' deploy/docker/goreecloud-backup.sh
+          grep -q 'record-status.py' deploy/docker/goreecloud-backup.sh
+          grep -q 'goreecloud.backup.vps.operation' deploy/docker/record-status.py
+          grep -q 'NotYetAccepted' deploy/docker/record-status.py
+
+          if grep -q -- '--sftp-password\|--key-data\|--known-hosts-data' deploy/docker/entrypoint.sh deploy/docker/goreecloud-backup.sh; then
+            echo "repository bootstrap must not place reusable secret material in command arguments" >&2
+            exit 1
+          fi
+
+      - name: Build headless container candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          evidence=/tmp/goreecloud-backup-image-evidence.txt
+          : > "$evidence"
+
+          candidate_sha="${{ github.event.pull_request.head.sha }}"
+          candidate_version="0.0.0-ci-${candidate_sha:0:12}"
+          candidate_image="goreecloud-backup:ci-${candidate_sha:0:12}"
+
+          go_build_tag="golang:1.26.8-bookworm"
+          runtime_tag="debian:bookworm-slim"
+
+          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$evidence"
+          printf 'candidate_version=%s\n' "$candidate_version" >> "$evidence"
+
+          docker pull "$go_build_tag"
+          docker pull "$runtime_tag"
+
+          go_digest_ref="$(docker image inspect "$go_build_tag" --format '{{index .RepoDigests 0}}')"
+          runtime_digest_ref="$(docker image inspect "$runtime_tag" --format '{{index .RepoDigests 0}}')"
+
+          go_build_image="${go_build_tag}@${go_digest_ref#*@}"
+          runtime_image="${runtime_tag}@${runtime_digest_ref#*@}"
+
+          printf 'go_build_image=%s\n' "$go_build_image" >> "$evidence"
+          printf 'runtime_image=%s\n' "$runtime_image" >> "$evidence"
+
+          GO_BUILD_IMAGE="$go_build_image" \
+          RUNTIME_IMAGE="$runtime_image" \
+          GOREECLOUD_BACKUP_VERSION="$candidate_version" \
+          GOREECLOUD_BACKUP_COMMIT="$candidate_sha" \
+          GOREECLOUD_BACKUP_IMAGE_TAG="$candidate_image" \
+            deploy/docker/build-image.sh | tee -a "$evidence"
+
+          image_id="$(docker image inspect "$candidate_image" --format '{{.Id}}')"
+          printf 'candidate_image=%s\n' "$candidate_image" >> "$evidence"
+          printf 'candidate_image_id=%s\n' "$image_id" >> "$evidence"
+
+          docker run --rm \
+            --user 10001:10001 \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --env KOPIA_CONFIG_PATH=/tmp/repository.config \
+            --env KOPIA_CACHE_DIRECTORY=/tmp/cache \
+            --env KOPIA_LOG_DIR=/tmp/logs \
+            "$candidate_image" --version \
+            | tee -a "$evidence"
+
+      - name: Retain headless image build evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: goreecloud-backup-vps-image-evidence-${{ github.run_id }}
+          path: /tmp/goreecloud-backup-image-evidence.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Validate systemd schedule contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^Type=oneshot$' deploy/systemd/goreecloud-backup.service
+          grep -q '^TimeoutStartSec=infinity$' deploy/systemd/goreecloud-backup.service
+          grep -q '^StandardOutput=journal$' deploy/systemd/goreecloud-backup.service
+          grep -q '^StandardError=journal$' deploy/systemd/goreecloud-backup.service
+          grep -q '^SyslogIdentifier=goreecloud-backup$' deploy/systemd/goreecloud-backup.service
+          grep -q '^OnCalendar=\*-\*-\* 00,06,12,18:00:00$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^RandomizedDelaySec=5m$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Persistent=true$' deploy/systemd/goreecloud-backup.timer
+          grep -q '^Unit=goreecloud-backup.service$' deploy/systemd/goreecloud-backup.timer

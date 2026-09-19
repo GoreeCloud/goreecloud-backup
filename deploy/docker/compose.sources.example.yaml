@@ -1,0 +1,16 @@
+# EXAMPLE ONLY.
+#
+# The real /srv/docker/stacks/goreecloud-backup/compose.sources.yaml must be
+# created from current authoritative workload recovery requirements plus fresh
+# live VPS path/readability evidence.
+#
+# The former VPS-side Kopia stack has been retired. Do not reconstruct current
+# source scope from the deleted Kopia Compose file or historical documentation.
+
+services:
+  backup:
+    volumes:
+      - type: bind
+        source: /REPLACE_WITH_CURRENT_VERIFIED_SOURCE_PATH
+        target: /source/REPLACE_WITH_CURRENT_VERIFIED_SOURCE_NAME
+        read_only: true

@@ -1,0 +1,15 @@
+.git
+.tmp
+dist
+coverage.txt
+app/node_modules
+site/node_modules
+
+# Runtime configuration and secret material must never enter the image context.
+**/.env
+**/.env.*
+!deploy/docker/.env.example
+**/secrets/
+**/*.secret
+**/*.pem
+**/*.key

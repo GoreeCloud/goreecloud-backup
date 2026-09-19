@@ -1,0 +1,79 @@
+name: goreecloud-backup
+
+services:
+  backup:
+    image: "${GOREECLOUD_BACKUP_IMAGE:?Set GOREECLOUD_BACKUP_IMAGE to an approved exact tag@sha256 digest}"
+    restart: "no"
+    init: true
+    hostname: "${GOREECLOUD_BACKUP_CLIENT_HOSTNAME:?Set the governed repository client hostname}"
+
+    # Select the runtime identity from verified live source permissions.
+    # Do not default to root or an arbitrary service UID.
+    user: "${GOREECLOUD_BACKUP_UID:?Set the validated runtime UID}:${GOREECLOUD_BACKUP_GID:?Set the validated runtime GID}"
+
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
+
+    environment:
+      KOPIA_CONFIG_PATH: /app/config/repository.config
+      KOPIA_CACHE_DIRECTORY: /app/cache
+      KOPIA_LOG_DIR: /app/logs
+      KOPIA_PERSIST_CREDENTIALS_ON_CONNECT: "false"
+      KOPIA_CHECK_FOR_UPDATES: "false"
+      GOREECLOUD_BACKUP_CLIENT_HOSTNAME: "${GOREECLOUD_BACKUP_CLIENT_HOSTNAME:?Set the governed repository client hostname}"
+      GOREECLOUD_BACKUP_CLIENT_USERNAME: "${GOREECLOUD_BACKUP_CLIENT_USERNAME:?Set the governed repository client username}"
+      GOREECLOUD_BACKUP_REPOSITORY_ID: "${GOREECLOUD_BACKUP_REPOSITORY_ID:?Set the preserved repository Unique ID}"
+      GOREECLOUD_BACKUP_SFTP_HOST: "${GOREECLOUD_BACKUP_SFTP_HOST:?Set the verified SFTP repository host}"
+      GOREECLOUD_BACKUP_SFTP_PORT: "${GOREECLOUD_BACKUP_SFTP_PORT:?Set the verified SFTP repository port}"
+      GOREECLOUD_BACKUP_SFTP_USERNAME: "${GOREECLOUD_BACKUP_SFTP_USERNAME:?Set the verified SFTP repository username}"
+      GOREECLOUD_BACKUP_SFTP_REPOSITORY_PATH: "${GOREECLOUD_BACKUP_SFTP_REPOSITORY_PATH:?Set the verified SFTP repository path}"
+      TMPDIR: /app/tmp
+      TZ: "${TZ:-UTC}"
+
+    secrets:
+      - repository_password
+
+    volumes:
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_CONFIG_DIR:?Set the verified persistent config directory}"
+        target: /app/config
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_CACHE_DIR:?Set the verified persistent cache directory}"
+        target: /app/cache
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_LOG_DIR:?Set the verified persistent log directory}"
+        target: /app/logs
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_TMP_DIR:?Set the verified persistent temporary directory}"
+        target: /app/tmp
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_SFTP_KEY_FILE:?Set the verified SFTP private-key path}"
+        target: /run/secrets/kopia-sftp-ed25519
+        read_only: true
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_SFTP_KNOWN_HOSTS_FILE:?Set the verified SFTP known_hosts path}"
+        target: /run/secrets/kopia-sftp-known_hosts
+        read_only: true
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_RESTORE_DIR:?Set the isolated restore-validation directory}"
+        target: /restore
+
+    # Source mounts are intentionally absent here. The production deployment must
+    # create compose.sources.yaml from current workload recovery requirements and
+    # fresh live VPS path/readability evidence.
+
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+secrets:
+  repository_password:
+    file: "${GOREECLOUD_BACKUP_REPOSITORY_PASSWORD_FILE:?Set the protected repository-password file}"

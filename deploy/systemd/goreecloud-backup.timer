@@ -1,0 +1,11 @@
+[Unit]
+Description=Run GoreeCloud Backup four times daily
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:00:00
+RandomizedDelaySec=5m
+Persistent=true
+Unit=goreecloud-backup.service
+
+[Install]
+WantedBy=timers.target
