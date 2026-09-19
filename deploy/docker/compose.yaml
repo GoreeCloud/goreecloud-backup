@@ -3,12 +3,11 @@ name: goreecloud-backup
 services:
   backup:
     image: "${GOREECLOUD_BACKUP_IMAGE:?Set GOREECLOUD_BACKUP_IMAGE to an approved exact tag@sha256 digest}"
-    container_name: goreecloud-backup
-    restart: unless-stopped
+    restart: "no"
     init: true
 
-    # The production UID/GID must be selected from verified host permissions.
-    # Do not default this service to root merely for convenience.
+    # Select the runtime identity from verified live source permissions.
+    # Do not default to root or an arbitrary service UID.
     user: "${GOREECLOUD_BACKUP_UID:?Set the validated runtime UID}:${GOREECLOUD_BACKUP_GID:?Set the validated runtime GID}"
 
     read_only: true
@@ -26,51 +25,40 @@ services:
       KOPIA_LOG_DIR: /app/logs
       KOPIA_PERSIST_CREDENTIALS_ON_CONNECT: "false"
       KOPIA_CHECK_FOR_UPDATES: "false"
-      KOPIA_SERVER_USERNAME: "${GOREECLOUD_BACKUP_SERVER_USERNAME:?Set the server username}"
-      KOPIA_SERVER_CONTROL_USER: "${GOREECLOUD_BACKUP_SERVER_CONTROL_USERNAME:-server-control}"
+      TMPDIR: /app/tmp
       TZ: "${TZ:-UTC}"
 
     secrets:
       - repository_password
-      - server_password
-      - server_control_password
 
     volumes:
       - type: bind
-        source: "${GOREECLOUD_BACKUP_CONFIG_DIR:?Set the persistent config directory}"
+        source: "${GOREECLOUD_BACKUP_CONFIG_DIR:?Set the verified persistent config directory}"
         target: /app/config
       - type: bind
-        source: "${GOREECLOUD_BACKUP_CACHE_DIR:?Set the persistent cache directory}"
+        source: "${GOREECLOUD_BACKUP_CACHE_DIR:?Set the verified persistent cache directory}"
         target: /app/cache
       - type: bind
-        source: "${GOREECLOUD_BACKUP_LOG_DIR:?Set the persistent log directory}"
+        source: "${GOREECLOUD_BACKUP_LOG_DIR:?Set the verified persistent log directory}"
         target: /app/logs
       - type: bind
-        source: "${GOREECLOUD_BACKUP_SOURCE_ROOT:?Set the verified backup source root}"
-        target: /source
+        source: "${GOREECLOUD_BACKUP_TMP_DIR:?Set the verified persistent temporary directory}"
+        target: /app/tmp
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_SFTP_KEY_FILE:?Set the verified SFTP private-key path}"
+        target: /run/secrets/kopia-sftp-ed25519
+        read_only: true
+      - type: bind
+        source: "${GOREECLOUD_BACKUP_SFTP_KNOWN_HOSTS_FILE:?Set the verified SFTP known_hosts path}"
+        target: /run/secrets/kopia-sftp-known_hosts
         read_only: true
       - type: bind
         source: "${GOREECLOUD_BACKUP_RESTORE_DIR:?Set the isolated restore-validation directory}"
         target: /restore
 
-    # No host port is published. The service is reachable only through the
-    # explicitly approved shared Docker network.
-    expose:
-      - "51515"
-
-    networks:
-      - gateway
-
-    healthcheck:
-      test:
-        - CMD
-        - /usr/local/bin/goreecloud-backup-healthcheck
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-    stop_grace_period: 30s
+    # Source mounts are intentionally absent here. The production migration must
+    # create compose.sources.yaml from fresh live Kopia source-mount readback.
+    # This prevents stale documentation from silently expanding backup scope.
 
     logging:
       driver: local
@@ -78,15 +66,6 @@ services:
         max-size: "10m"
         max-file: "5"
 
-networks:
-  gateway:
-    external: true
-    name: "${GOREECLOUD_GATEWAY_NETWORK:?Set the verified private Gateway Docker network}"
-
 secrets:
   repository_password:
     file: "${GOREECLOUD_BACKUP_REPOSITORY_PASSWORD_FILE:?Set the protected repository-password file}"
-  server_password:
-    file: "${GOREECLOUD_BACKUP_SERVER_PASSWORD_FILE:?Set the protected server-password file}"
-  server_control_password:
-    file: "${GOREECLOUD_BACKUP_SERVER_CONTROL_PASSWORD_FILE:?Set the protected server-control-password file}"
