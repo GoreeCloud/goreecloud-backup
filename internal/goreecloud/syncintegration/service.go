@@ -49,7 +49,7 @@ func (d AuthorizationDecision) validateForCheckpoint(request CheckpointRequest) 
 // credential format, or token type. Those concerns belong to the authorized
 // platform adapter rather than the recovery-domain contract.
 type CheckpointAuthorizer interface {
-	AuthorizeCheckpoint(context.Context, CheckpointRequest) (AuthorizationDecision, error)
+	AuthorizeCheckpoint(ctx context.Context, request CheckpointRequest) (AuthorizationDecision, error)
 }
 
 // AuthorizedCheckpointRequest is produced only after CheckpointService has
@@ -124,7 +124,7 @@ func (s CheckpointSubmission) validateForRequest(request AuthorizedCheckpointReq
 // already-authorized checkpoint request. Implementations must still preserve
 // Backup's own policy, repository, verification, and recovery semantics.
 type CheckpointExecutor interface {
-	RequestCheckpoint(context.Context, AuthorizedCheckpointRequest) (CheckpointSubmission, error)
+	RequestCheckpoint(ctx context.Context, request AuthorizedCheckpointRequest) (CheckpointSubmission, error)
 }
 
 // CheckpointService enforces the source-level authorization and scope-mapping
